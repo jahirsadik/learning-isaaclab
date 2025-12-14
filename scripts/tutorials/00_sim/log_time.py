@@ -66,7 +66,6 @@ def main():
     # Prepare to count sim_time
     sim_dt = sim.get_physics_dt()
     sim_time = 0.0
-
     # Open logging file
     with open(os.path.join(log_dir_path, "log.txt"), "w") as log_file:
         # Simulate physics
@@ -79,6 +78,8 @@ def main():
 
 if __name__ == "__main__":
     # run the main function
+    print("Logging started.")
     main()
+    print("Logging complete.")
     # close sim app
     simulation_app.close()

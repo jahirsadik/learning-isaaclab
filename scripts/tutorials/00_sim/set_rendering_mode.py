@@ -23,6 +23,12 @@ from isaaclab.app import AppLauncher
 parser = argparse.ArgumentParser(
     description="Tutorial on viewing a warehouse scene with a given rendering mode preset."
 )
+parser.add_argument(
+    "--width", type=int, default=1280, help="Width of the viewport and generated images. Defaults to 1280"
+)
+parser.add_argument(
+    "--height", type=int, default=720, help="Height of the viewport and generated images. Defaults to 720"
+)
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -43,7 +49,7 @@ def main():
     # rendering modes include performance, balanced, and quality
     # note, the rendering_mode specified in the CLI argument (--rendering_mode) takes precedence over this Render Config setting
     rendering_mode = "performance"
-
+    print(f"[INFO]: Setting rendering mode to {rendering_mode}")
     # carb setting dictionary can include any rtx carb setting which will overwrite the native preset setting
     carb_settings = {"rtx.reflections.enabled": True}
 

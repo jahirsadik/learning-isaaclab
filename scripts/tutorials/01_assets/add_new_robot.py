@@ -93,6 +93,11 @@ class NewRobotsSceneCfg(InteractiveSceneCfg):
         prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
     )
 
+    distant_light = AssetBaseCfg(prim_path="/World/lightDistant", spawn=sim_utils.DistantLightCfg(
+        intensity=3000.0,
+        color=(0.75, 0.75, 0.75),
+    ))
+
     # robot
     Jetbot = JETBOT_CONFIG.replace(prim_path="{ENV_REGEX_NS}/Jetbot")
     Dofbot = DOFBOT_CONFIG.replace(prim_path="{ENV_REGEX_NS}/Dofbot")
