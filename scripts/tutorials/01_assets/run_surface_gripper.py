@@ -124,6 +124,7 @@ def run_simulator(
 
         # Sample a random command between -1 and 1.
         gripper_commands = torch.rand(surface_gripper.num_instances) * 2.0 - 1.0
+        # gripper_commands[..., -1] = -1.0 if count < 150 else 0.0 if count < 300 else 1.0
         # The gripper behavior is as follows:
         # -1 < command < -0.3 --> Gripper is Opening
         # -0.3 < command < 0.3 --> Gripper is Idle
