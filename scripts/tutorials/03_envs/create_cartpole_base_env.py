@@ -45,10 +45,38 @@ from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils import configclass
+from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.assets import AssetBaseCfg
+import isaaclab.sim as sim_utils
 
 from isaaclab_tasks.manager_based.classic.cartpole.cartpole_env_cfg import CartpoleSceneCfg
 
 
+class MyCustomCartpoleSceneCfg(CartpoleSceneCfg):
+    # 1. OVERRIDE existing light (Global)
+    # Just redeclare the variable name 'dome_light' with your new settings
+    dome_light = AssetBaseCfg(
+        prim_path="/World/DomeLight",
+        spawn=sim_utils.DomeLightCfg(
+            color=(0.9, 0.9, 0.9), 
+            intensity=3000.0  # Increased from 500.0
+        ),
+    )
+
+    # 2. ADD a new light (Per Environment)
+    # We add a new variable name (e.g., 'local_light').
+    # CRITICAL: Use "{ENV_REGEX_NS}" so it spawns 1 light per environment.
+    local_light = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/LocalLight", 
+        spawn=sim_utils.SphereLightCfg(
+            radius=0.85,
+            intensity=5000.0,
+            color=(1.0, 1.0, 1.0), # White light
+        ),
+    )
+
+# In the cartpole environment, we want to control the force applied to the cart to balance the pole. 
+# Thus, we will create an action term that controls the force applied to the cart.
 @configclass
 class ActionsCfg:
     """Action specifications for the environment."""
@@ -118,7 +146,7 @@ class CartpoleEnvCfg(ManagerBasedEnvCfg):
     """Configuration for the cartpole environment."""
 
     # Scene settings
-    scene = CartpoleSceneCfg(num_envs=1024, env_spacing=2.5)
+    scene = MyCustomCartpoleSceneCfg(num_envs=1024, env_spacing=2.5)
     # Basic settings
     observations = ObservationsCfg()
     actions = ActionsCfg()
@@ -132,7 +160,7 @@ class CartpoleEnvCfg(ManagerBasedEnvCfg):
         # step settings
         self.decimation = 4  # env step every 4 sim steps: 200Hz / 4 = 50Hz
         # simulation settings
-        self.sim.dt = 0.005  # sim step every 5ms: 200Hz
+        self.sim.dt = 0.01  # sim step every 10ms: 100Hz
 
 
 def main():
