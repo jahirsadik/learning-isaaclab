@@ -17,7 +17,7 @@ parser.add_argument(
     "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
 )
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
-parser.add_argument("--task", type=str, default=None, help="Name of the task.")
+parser.add_argument("--task", type=str, default=None, help="Name of the task.") # This is new from previous tutorials
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -32,6 +32,10 @@ simulation_app = app_launcher.app
 import gymnasium as gym
 import torch
 
+
+# To inform the gym registry with all the environments provided by the isaaclab_tasks extension, we must import the 
+#       module at the start of the script. 
+# This will execute the __init__.py file which iterates over all the sub-packages and registers their respective environments.
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import parse_env_cfg
 

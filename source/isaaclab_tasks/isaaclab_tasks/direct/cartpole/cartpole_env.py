@@ -90,6 +90,8 @@ class CartpoleEnv(DirectRLEnv):
     def _apply_action(self) -> None:
         self.cartpole.set_joint_effort_target(self.actions, joint_ids=self._cart_dof_idx)
 
+# Instead of using Manager classes for defining rewards and observations, the direct workflow 
+#   tasks implement the full reward and observation functions directly in the task script.
     def _get_observations(self) -> dict:
         obs = torch.cat(
             (
@@ -100,7 +102,7 @@ class CartpoleEnv(DirectRLEnv):
             ),
             dim=-1,
         )
-        observations = {"policy": obs}
+        observations = {"policy": obs} # (num_envs, 4) size
         return observations
 
     def _get_rewards(self) -> torch.Tensor:
