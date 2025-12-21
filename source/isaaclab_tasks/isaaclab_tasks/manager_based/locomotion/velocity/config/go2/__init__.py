@@ -34,6 +34,28 @@ gym.register(
 )
 
 gym.register(
+    id="Isaac-LongCorridor-Custom-Unitree-Go2-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.go2_long_corridor_env_cfg:UnitreeGo2LongCorridorEnvCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:UnitreeGo2LongCorridorPPORunnerCfg",
+        "skrl_cfg_entry_point": f"{agents.__name__}:skrl_long_corridor_ppo_cfg.yaml",
+    },
+)
+
+gym.register(
+    id="Isaac-LongCorridor-Custom-Unitree-Go2-Play-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.go2_long_corridor_env_cfg:UnitreeGo2LongCorridorEnvCfg_PLAY",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:UnitreeGo2LongCorridorPPORunnerCfg",
+        "skrl_cfg_entry_point": f"{agents.__name__}:skrl_long_corridor_ppo_cfg.yaml",
+    },
+)
+
+gym.register(
     id="Isaac-Velocity-Rough-Unitree-Go2-v0",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,

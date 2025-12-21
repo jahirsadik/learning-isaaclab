@@ -87,6 +87,19 @@ def root_pos_w(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg(
     return asset.data.root_pos_w - env.scene.env_origins
 
 
+def fixed_table_pos_world(env: ManagerBasedEnv, table_offsets: list[list[float]]) -> torch.Tensor:
+    """Returns flattened world positions of tables defined by local offsets."""
+    local_offsets = torch.tensor(table_offsets, device=env.device)
+    # Broadcast: (num_envs, 1, 3) + (num_tables, 3) -> (num_envs, num_tables, 3)
+    origins = env.scene.env_origins.unsqueeze(1)
+    table_world_positions = origins + local_offsets
+    # Flatten: (num_envs, num_tables, 3) -> (num_envs, num_tables * 3)
+    # This ensures the output is compatible with the observation buffer
+    return table_world_positions.flatten(start_dim=1)
+
+
+
+
 @generic_io_descriptor(
     units="unit", axes=["W", "X", "Y", "Z"], observation_type="RootState", on_inspect=[record_shape, record_dtype]
 )

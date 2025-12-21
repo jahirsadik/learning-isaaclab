@@ -212,6 +212,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, expe
     # reset environment
     obs, _ = env.reset()
     timestep = 0
+    log_step = 0
     # simulate environment
     while simulation_app.is_running():
         start_time = time.time()
@@ -228,6 +229,25 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, expe
                 actions = outputs[-1].get("mean_actions", outputs[0])
             # env stepping
             obs, _, _, _, _ = env.step(actions)
+
+            log_step += 1
+            if log_step % 1000 == 0:
+                full_dict = env.unwrapped.obs_buf
+                # print("[INFO] Observations for Robot 0 and Robot 1:", full_dict)
+                if "debug" in full_dict:
+                    print("+" * 20)
+                    pos_data = full_dict["debug"]["cur_pos"].cpu().numpy()
+                    print(f"[DEBUG] Env0 Robot Position: {pos_data[0]}")
+                    print(f"[DEBUG] Env1 Robot Position: {pos_data[1]}")
+                    tableA_data_original = full_dict["debug"]["tableA_pos"].cpu().numpy()
+                    tableB_data_original = full_dict["debug"]["tableB_pos"].cpu().numpy()
+                    print(f"[DEBUG] Env0 TableA Position: {tableA_data_original[0]}", end=", \t")
+                    print(f"[DEBUG] Env0 TableB Position: {tableB_data_original[0]}")
+                    print(f"[DEBUG] Env1 TableA Position: {tableA_data_original[1]}", end=", \t")
+                    print(f"[DEBUG] Env1 TableB Position: {tableB_data_original[1]}")
+                    print("+" * 20)
+                    
+
         if args_cli.video:
             timestep += 1
             # exit the play loop after recording one video
