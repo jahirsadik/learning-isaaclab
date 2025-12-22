@@ -28,8 +28,10 @@ import isaaclab_tasks.manager_based.locomotion.velocity.mdp as mdp
 ##
 # Pre-defined configs
 ##
-from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG  # isort: skip
 from isaaclab.assets import RigidObjectCfg
+from isaaclab.envs import ManagerBasedRLEnv
+from isaaclab.assets import Articulation, RigidObject
+import torch
 
 
 ##
@@ -164,7 +166,7 @@ class ObservationsCfg:
             noise=Unoise(n_min=-0.1, n_max=0.1),
             clip=(-1.0, 1.0),
         )
-
+        
         def __post_init__(self):
             self.enable_corruption = True
             self.concatenate_terms = True
@@ -189,6 +191,15 @@ class ObservationsCfg:
 @configclass
 class EventCfg:
     """Configuration for events."""
+
+    reset_robot_near_tableA = EventTerm(
+        func=mdp.reset_robot_near_target,
+        mode="reset",
+        params={
+            "target_asset_cfg": SceneEntityCfg("table_A"),
+            "position_offset": (0.0, 2.0, 2.5),
+        }
+    )
 
     # startup
     physics_material = EventTerm(
@@ -361,7 +372,10 @@ class LongCorridorEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.dt = 0.005
         self.sim.render_interval = self.decimation
         # self.sim.physics_material = self.scene.terrain.physics_material
-        self.sim.physx.gpu_max_rigid_patch_count = 10 * 2**15
+        self.sim.physx.gpu_max_rigid_patch_count = 10 * 2**15       
+        # table_pos = self.scene.table_A.init_state.pos
+        # self.scene.robot.init_state.pos = (table_pos[0] + 0.0, table_pos[1] + 0.1, table_pos[2] + 0.0)
+
         # update sensor update periods
         # we tick all the sensors based on the smallest update period (physics update period)
         if self.scene.height_scanner is not None:

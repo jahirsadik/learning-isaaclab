@@ -1102,6 +1102,26 @@ def reset_root_state_uniform(
     asset.write_root_velocity_to_sim(velocities, env_ids=env_ids)
 
 
+def reset_robot_near_target(
+    env: ManagerBasedEnv, 
+    env_ids: torch.Tensor | None, 
+    target_asset_cfg: SceneEntityCfg = SceneEntityCfg("table_A"), 
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"), 
+    position_offset: tuple[float, float, float] = (0.0, 0.0, 2.5)
+):
+    robot: Articulation = env.scene[asset_cfg.name]
+    target: RigidObject = env.scene[target_asset_cfg.name]
+    target_pos = target.data.root_pos_w[env_ids]
+    print("Target positions:", target_pos)
+    offset_tensor = torch.tensor(position_offset, device=target.device)
+    positions = target_pos + offset_tensor
+    # orientations = robot.data.default_root_state[env_ids, 3:7]
+    # Try this first: Valid Identity Quaternion (No rotation)
+    orientations = torch.tensor([0.707107, 0.0, 0.0, 0.707107], device=robot.device).repeat(len(env_ids), 1)  
+    velocities = torch.zeros((len(env_ids), 6), device=robot.device)
+    robot.write_root_pose_to_sim(torch.cat([positions, orientations], dim=-1), env_ids=env_ids)
+    robot.write_root_velocity_to_sim(velocities, env_ids=env_ids)
+
 def reset_root_state_with_random_orientation(
     env: ManagerBasedEnv,
     env_ids: torch.Tensor,

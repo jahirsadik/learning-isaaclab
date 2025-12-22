@@ -231,7 +231,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, expe
             obs, _, _, _, _ = env.step(actions)
 
             log_step += 1
-            if log_step % 1000 == 0:
+            if log_step % 100 == 0:
                 full_dict = env.unwrapped.obs_buf
                 # print("[INFO] Observations for Robot 0 and Robot 1:", full_dict)
                 if "debug" in full_dict:

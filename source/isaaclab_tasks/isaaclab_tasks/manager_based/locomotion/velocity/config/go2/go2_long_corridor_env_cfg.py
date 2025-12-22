@@ -14,10 +14,10 @@ class UnitreeGo2LongCorridorEnvCfg(LongCorridorEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
-
+        
         self.scene.robot = UNITREE_GO2_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-        self.scene.robot.init_state.pos = pos=(0.0, 0.0, 2.5)
-        self.scene.robot.init_state.rot = rot=(1, 0, 0, 1)
+        self.scene.robot.init_state.pos = (0.0, 0.0, 2.5)
+        self.scene.robot.init_state.rot = (0.707107, 0.0, 0.0, 0.707107)
         self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/base"
         # scale down the terrains because the robot is small
         # self.scene.terrain.terrain_generator.sub_terrains["boxes"].grid_height_range = (0.025, 0.1)
@@ -33,17 +33,7 @@ class UnitreeGo2LongCorridorEnvCfg(LongCorridorEnvCfg):
         self.events.add_base_mass.params["asset_cfg"].body_names = "base"
         self.events.base_external_force_torque.params["asset_cfg"].body_names = "base"
         self.events.reset_robot_joints.params["position_range"] = (1.0, 1.0)
-        self.events.reset_base.params = {
-            "pose_range": {"x": (-0.5, 0.5), "y": (-0.5, 0.5), "yaw": (-3.14, 3.14)},
-            "velocity_range": {
-                "x": (0.0, 0.0),
-                "y": (0.0, 0.0),
-                "z": (0.0, 0.0),
-                "roll": (0.0, 0.0),
-                "pitch": (0.0, 0.0),
-                "yaw": (0.0, 0.0),
-            },
-        }
+        self.events.reset_base = None
         self.events.base_com = None
 
         # rewards
