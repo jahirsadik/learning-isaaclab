@@ -28,7 +28,7 @@ import isaaclab_tasks.manager_based.locomotion.velocity.mdp as mdp
 ##
 # Pre-defined configs
 ##
-from isaaclab.assets import RigidObjectCfg
+from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab.assets import Articulation, RigidObject
 import torch
@@ -40,6 +40,11 @@ import torch
 import os
 from isaaclab.sim import UsdFileCfg
 
+# Commands
+from dataclasses import dataclass
+from isaaclab.managers import CommandTerm, CommandTermCfg
+from isaaclab.utils.math import wrap_to_pi, quat_rotate_inverse, yaw_quat
+
 DATA_DIR = "/home/jahirsadikmonon/Documents/Projects/usds"
 
 
@@ -50,15 +55,17 @@ class LongCorridorCfg(InteractiveSceneCfg):
     # ground terrain
     ground = AssetBaseCfg(
         prim_path="/World/defaultGroundPlane",
-        spawn=sim_utils.GroundPlaneCfg(),
+        spawn=sim_utils.GroundPlaneCfg(size=(1000000, 1000)),
         init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, 0.0)),
     )
     print("Current directory:", DATA_DIR)
     # custom long corridor usd
+
     terrain = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Corridor",
         spawn=UsdFileCfg(
             usd_path=os.path.join(DATA_DIR, "long_corridor.usda"),
+            collision_props=sim_utils.CollisionPropertiesCfg(),
         ),
         init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, 0.0)),
     )
@@ -72,6 +79,103 @@ class LongCorridorCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/Corridor/simple_room/table_01",
         init_state=RigidObjectCfg.InitialStateCfg(),
     )
+
+    cone_A = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/ConeA",
+        spawn=sim_utils.ConeCfg(
+            radius=0.1,
+            height=0.2,
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(
+                rigid_body_enabled=True,
+                kinematic_enabled=False,  # Make sure it's NOT kinematic
+                disable_gravity=False,
+            ),
+            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+            collision_props=sim_utils.CollisionPropertiesCfg(
+                contact_offset=0.05, # Increase this
+                rest_offset=0.005,    # Add a tiny gap
+            ),
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0), metallic=0.2),
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(),
+    )
+
+    custObj_A = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/CustomMeshA",
+        spawn=sim_utils.UsdFileCfg(
+            scale=(2.0, 2.0, 2.0),   
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+            mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
+            collision_props=sim_utils.CollisionPropertiesCfg(),
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(),
+    )
+
+    cuboid_A = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/CuboidA",
+        spawn=sim_utils.CuboidCfg(
+            size=(0.2, 0.2, 0.2),
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(
+                rigid_body_enabled=True,
+                kinematic_enabled=False,
+                disable_gravity=False,
+            ),
+            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+            collision_props=sim_utils.CollisionPropertiesCfg(),
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0), metallic=0.2),
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(),
+    )
+
+    cone_B = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/ConeB",
+        spawn=sim_utils.ConeCfg(
+            radius=0.1,
+            height=0.2,
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(
+                rigid_body_enabled=True,
+                kinematic_enabled=False,  # Make sure it's NOT kinematic
+                disable_gravity=False,
+            ),
+            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+            collision_props=sim_utils.CollisionPropertiesCfg(
+                contact_offset=0.05, # Increase this
+                rest_offset=0.005,    # Add a tiny gap
+            ),
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 1.0), metallic=0.2),
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(),
+    )
+
+    custObj_B = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/CustomMeshB",
+        spawn=sim_utils.UsdFileCfg(
+            scale=(2.0, 2.0, 2.0),   
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+            mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
+            collision_props=sim_utils.CollisionPropertiesCfg(),
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(),
+    )
+
+    cuboid_B = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/CuboidB",
+        spawn=sim_utils.CuboidCfg(
+            size=(0.2, 0.2, 0.2),
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(
+                rigid_body_enabled=True,
+                kinematic_enabled=False,
+                disable_gravity=False,
+            ),
+            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+            collision_props=sim_utils.CollisionPropertiesCfg(),
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 1.0, 0.0), metallic=0.2),
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(),
+    )
+
 
 
     # robots
@@ -102,6 +206,116 @@ class LongCorridorCfg(InteractiveSceneCfg):
 # MDP settings
 ##
 
+# my_project/mdp/patrol_logic.py
+
+# @dataclass
+# class PatrolCommandCfg(CommandTermCfg):
+#     """Configuration for the patrol command."""
+#     class_type = None 
+#     resampling_time_range = (0.0, 0.0) 
+#     debug_vis = True
+    
+#     # CHANGED: We now ask for the keys in the scene, not the coordinates
+#     asset_name_a: str = "table_A"
+#     asset_name_b: str = "table_B"
+    
+#     waypoint_threshold: float = 1.0
+#     walk_speed: float = 0.6
+#     turn_speed: float = 1.0
+
+
+# class PatrolCommand(CommandTerm):
+#     """
+#     Generates velocity commands to drive the robot between Table A and B.
+#     """
+#     cfg: PatrolCommandCfg
+
+#     def __init__(self, cfg: PatrolCommandCfg, env):
+#         super().__init__(cfg, env)
+        
+#         # 0 = To B, 1 = To A, 2 = Done
+#         self.patrol_state = torch.zeros(self.num_envs, device=self.device, dtype=torch.long)
+#         self._command = torch.zeros(self.num_envs, 3, device=self.device)
+
+#         # Access scene elements
+#         self.table_a = env.scene[cfg.asset_name_a]
+#         self.table_b = env.scene[cfg.asset_name_b]
+        
+#         self.metrics = {}
+
+#     @property
+#     def command(self):
+#         return self._command
+
+#     def _resample_command(self, env_ids):
+#         self.patrol_state[env_ids] = 0
+#         self._command[env_ids] = 0.0
+
+#     def _update_command(self):
+#         # Use self._env (with underscore)
+#         robot_pos_w = self._env.scene["robot"].data.root_pos_w
+#         pos_a_w = self.table_a.data.root_pos_w
+#         pos_b_w = self.table_b.data.root_pos_w
+
+#         # Target selection
+#         target_pos = torch.where(
+#             self.patrol_state.unsqueeze(1) == 0, 
+#             pos_b_w, 
+#             pos_a_w
+#         )
+
+#         # Distance logic
+#         to_target = target_pos[:, :2] - robot_pos_w[:, :2]
+#         dist = torch.norm(to_target, dim=1)
+        
+#         # State transitions
+#         at_b = (self.patrol_state == 0) & (dist < self.cfg.waypoint_threshold)
+#         self.patrol_state[at_b] = 1
+        
+#         at_a = (self.patrol_state == 1) & (dist < self.cfg.waypoint_threshold)
+#         self.patrol_state[at_a] = 2
+
+#         # Command generation
+#         desired_yaw = torch.atan2(to_target[:, 1], to_target[:, 0])
+#         _, _, current_yaw = get_euler_xyz(self._env.scene["robot"].data.root_quat_w)
+#         yaw_error = wrap_to_pi(desired_yaw - current_yaw)
+        
+#         lin_vel_x = torch.where(torch.abs(yaw_error) < 1.57, self.cfg.walk_speed, 0.0)
+#         lin_vel_x[self.patrol_state == 2] = 0.0
+        
+#         ang_vel_z = torch.clamp(yaw_error * 2.0, -self.cfg.turn_speed, self.cfg.turn_speed)
+#         ang_vel_z[self.patrol_state == 2] = 0.0
+
+#         self._command[:, 0] = lin_vel_x
+#         self._command[:, 1] = 0.0
+#         self._command[:, 2] = ang_vel_z
+
+#     def _update_metrics(self):
+#         # FIX IS HERE: Cast to float() so .mean() works during logging
+#         self.metrics["patrol_state"] = self.patrol_state.float()
+
+
+# Helper needed if not imported
+# def get_euler_xyz(quat):
+#     # Simplified placeholder for quaternion to euler conversion
+#     # In real code use: isaaclab.utils.math.euler_xyz_from_quat
+#     from isaaclab.utils.math import euler_xyz_from_quat
+#     return euler_xyz_from_quat(quat)
+
+
+# @configclass
+# class CommandsCfg:
+#     """Command specifications for the MDP."""
+#     base_velocity = PatrolCommandCfg(
+#         class_type=PatrolCommand, # Added this to match your original structure
+#         resampling_time_range=(0.0, 0.0), # Important: 0.0 means "update every step"
+#         debug_vis=True,
+#         asset_name_a="table_A",
+#         asset_name_b="table_B",
+#         waypoint_threshold=1.0,
+#         walk_speed=0.8,
+#     )
+
 
 @configclass
 class CommandsCfg:
@@ -116,10 +330,7 @@ class CommandsCfg:
         heading_control_stiffness=0.5,
         debug_vis=True,
         ranges=mdp.UniformVelocityCommandCfg.Ranges(
-            lin_vel_x=(-1.0, 1.0),
-            lin_vel_y=(-1.0, 1.0),
-            ang_vel_z=(-1.0, 1.0),
-            heading=(-math.pi, math.pi),
+            lin_vel_x=(-1.0, 1.0), lin_vel_y=(-1.0, 1.0), ang_vel_z=(-1.0, 1.0), heading=(-math.pi, math.pi)
         ),
     )
 
@@ -197,7 +408,51 @@ class EventCfg:
         mode="reset",
         params={
             "target_asset_cfg": SceneEntityCfg("table_A"),
-            "position_offset": (0.0, 2.0, 2.5),
+            "position_offset": (0.0, 2.0, .25),
+        }
+    )
+
+    reset_cone_A = EventTerm(
+        func=mdp.reset_rigid_object_near_target,
+        mode="reset",
+        params={
+            "target_asset_cfg": SceneEntityCfg("table_A"),
+            "rigid_object_cfg": SceneEntityCfg("cone_A"),
+            "position_offset": (-0.65, 0.0, .85),
+        }
+    )
+
+    reset_custObj_A = EventTerm(
+        func=mdp.reset_rigid_object_near_target,
+        mode="reset",
+        params={
+            "target_asset_cfg": SceneEntityCfg("table_A"),
+            "rigid_object_cfg": SceneEntityCfg("custObj_A"),
+            "position_offset": (0.0, 0.0, 0.85),
+        }
+    )
+
+    reset_cuboid_A = EventTerm(
+        func=mdp.reset_rigid_object_near_target,
+        mode="reset",
+        params={
+            "target_asset_cfg": SceneEntityCfg("table_A"),
+            "rigid_object_cfg": SceneEntityCfg("cuboid_A"),
+            "position_offset": (0.65, 0.0, 0.85),
+        }
+    )
+
+    reset_table_B_objects = EventTerm(
+        func=mdp.randomized_slot_placement,
+        mode="reset",
+        params={
+            "target_asset_cfg": SceneEntityCfg("table_B"),
+            "object_list_cfgs": [
+                SceneEntityCfg("cone_B"), 
+                SceneEntityCfg("custObj_B"), 
+                SceneEntityCfg("cuboid_B"),
+            ],
+            "position_offset": (0.65, 0.0, 0.85),
         }
     )
 
@@ -321,6 +576,14 @@ class RewardsCfg:
     dof_pos_limits = RewTerm(func=mdp.joint_pos_limits, weight=0.0)
 
 
+# def patrol_finished(env, command_name: str = "base_velocity"):
+#     """Terminate if patrol state is 2 (Done)."""
+#     # Access the command term by name
+#     command_term = env.command_manager.get_term(command_name)
+#     # Return boolean tensor (True = Reset)
+#     return command_term.patrol_state == 2
+
+
 @configclass
 class TerminationsCfg:
     """Termination terms for the MDP."""
@@ -333,6 +596,11 @@ class TerminationsCfg:
             "threshold": 1.0,
         },
     )
+
+    # mission_complete = DoneTerm(
+    #     func=patrol_finished,
+    #     params={"command_name": "base_velocity"},
+    # )
 
 
 @configclass
@@ -352,7 +620,7 @@ class LongCorridorEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the locomotion velocity-tracking environment."""
 
     # Scene settings
-    scene: LongCorridorCfg = LongCorridorCfg(num_envs=2, env_spacing=10.0)
+    scene: LongCorridorCfg = LongCorridorCfg(num_envs=2, env_spacing=60.0)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()

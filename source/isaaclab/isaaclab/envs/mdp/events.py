@@ -1112,7 +1112,7 @@ def reset_robot_near_target(
     robot: Articulation = env.scene[asset_cfg.name]
     target: RigidObject = env.scene[target_asset_cfg.name]
     target_pos = target.data.root_pos_w[env_ids]
-    print("Target positions:", target_pos)
+    # print("Target positions:", target_pos)
     offset_tensor = torch.tensor(position_offset, device=target.device)
     positions = target_pos + offset_tensor
     # orientations = robot.data.default_root_state[env_ids, 3:7]
@@ -1121,6 +1121,79 @@ def reset_robot_near_target(
     velocities = torch.zeros((len(env_ids), 6), device=robot.device)
     robot.write_root_pose_to_sim(torch.cat([positions, orientations], dim=-1), env_ids=env_ids)
     robot.write_root_velocity_to_sim(velocities, env_ids=env_ids)
+
+
+def reset_rigid_object_near_target(
+    env: ManagerBasedEnv, 
+    env_ids: torch.Tensor | None, 
+    target_asset_cfg: SceneEntityCfg = SceneEntityCfg("table_A"), 
+    rigid_object_cfg: SceneEntityCfg = SceneEntityCfg("cone_object"), 
+    position_offset: tuple[float, float, float] = (-0.1, 0.0, 2.5),
+    orientation: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)
+):
+    rigid_object: RigidObject = env.scene[rigid_object_cfg.name]
+    target_asset: RigidObject = env.scene[target_asset_cfg.name]
+    target_asset_pos = target_asset.data.root_pos_w[env_ids]
+    offset_tensor = torch.tensor(position_offset, device=target_asset.device)
+    positions = target_asset_pos + offset_tensor
+    orientations = torch.tensor(orientation, device=rigid_object.device).repeat(len(env_ids), 1)  
+    velocities = torch.zeros((len(env_ids), 6), device=rigid_object.device)
+    rigid_object.write_root_pose_to_sim(torch.cat([positions, orientations], dim=-1), env_ids=env_ids)
+    rigid_object.write_root_velocity_to_sim(velocities, env_ids=env_ids)
+
+
+PLACEMENT_INDEX = None 
+
+
+def randomized_slot_placement(
+    env, 
+    env_ids, 
+    target_asset_cfg: SceneEntityCfg, 
+    object_list_cfgs: list[SceneEntityCfg],
+    position_offset: tuple[float, float, float] = (0.0, 0.0, 0.85)
+):
+    global PLACEMENT_INDEX
+    
+    # 1. Initialize global state tracking
+    if PLACEMENT_INDEX is None:
+        PLACEMENT_INDEX = torch.zeros(env.num_envs, device=env.device, dtype=torch.long)
+
+    # 2. Define the fixed X-slots
+    # Using your values: -0.65, 0.0, 0.65
+    slots_x = torch.tensor([position_offset[0], 0.0, -position_offset[0]], device=env.device)
+    
+    # 3. Define unique permutations (cycling through 3 patterns)
+    permutations = torch.tensor([
+        [0, 1, 2],  # Pattern 1
+        [2, 0, 1],  # Pattern 2
+        [1, 2, 0]   # Pattern 3
+    ], device=env.device)
+
+    # 4. Determine assigned slots for current env_ids
+    current_perm_indices = PLACEMENT_INDEX[env_ids] % permutations.shape[0]
+    # assigned_slots shape is (num_resets, 3) where each column is the X-offset for that object index
+    assigned_slots = slots_x[permutations[current_perm_indices]]
+
+    # 5. Loop through objects and call the helper function
+    for i, obj_cfg in enumerate(object_list_cfgs):
+        # We pick the X-offset for the current environment reset
+        # Since reset_rigid_object_near_target expects a single tuple offset for the whole batch,
+        # we check if all envs are getting the same offset. 
+        # In vectorized IsaacLab resets, we'll extract the specific offset value.
+        x_offset = assigned_slots[0, i].item() 
+        # Call your first function
+        reset_rigid_object_near_target(
+            env=env,
+            env_ids=env_ids,
+            target_asset_cfg=target_asset_cfg,
+            rigid_object_cfg=obj_cfg,
+            position_offset=(x_offset, position_offset[1], position_offset[2]), # X is dynamic, Y and Z are fixed
+            orientation=(0.707107, 0.707107, 0.0, 0.0) if obj_cfg.name == "custObj_B" else (1.0, 0.0, 0.0, 0.0) # Example orientations
+        )
+
+    # 6. Increment global state
+    PLACEMENT_INDEX[env_ids] += 1
+
 
 def reset_root_state_with_random_orientation(
     env: ManagerBasedEnv,
