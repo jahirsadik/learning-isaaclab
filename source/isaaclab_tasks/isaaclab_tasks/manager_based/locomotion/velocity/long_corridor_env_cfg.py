@@ -379,24 +379,24 @@ class ObservationsCfg:
         )
         
         def __post_init__(self):
-            self.enable_corruption = True
+            self.enable_corruption = False
             self.concatenate_terms = True
 
-    @configclass
-    class DebugCfg(ObsGroup):
-        """Observations NOT seen by policy, used for rewards or logging."""
-        def __post_init__(self):
-            # This makes env.unwrapped.obs_buf["debug"] a DICTIONARY of tensors
-            # instead of one big tensor.
-            self.concatenate_terms = False
+    # @configclass
+    # class DebugCfg(ObsGroup):
+    #     """Observations NOT seen by policy, used for rewards or logging."""
+    #     def __post_init__(self):
+    #         # This makes env.unwrapped.obs_buf["debug"] a DICTIONARY of tensors
+    #         # instead of one big tensor.
+    #         self.concatenate_terms = False
 
-        cur_pos = ObsTerm(func=mdp.root_pos_w)  # Global translation
-        tableA_pos = ObsTerm(func=mdp.root_pos_w,params={"asset_cfg": SceneEntityCfg("table_A")})
-        tableB_pos = ObsTerm(func=mdp.root_pos_w,params={"asset_cfg": SceneEntityCfg("table_B")})
+    #     cur_pos = ObsTerm(func=mdp.root_pos_w)  # Global translation
+    #     tableA_pos = ObsTerm(func=mdp.root_pos_w,params={"asset_cfg": SceneEntityCfg("table_A")})
+    #     tableB_pos = ObsTerm(func=mdp.root_pos_w,params={"asset_cfg": SceneEntityCfg("table_B")})
 
     # observation groups
     policy: PolicyCfg = PolicyCfg()
-    debug: DebugCfg = DebugCfg()
+    # debug: DebugCfg = DebugCfg()
 
 
 @configclass
@@ -408,7 +408,7 @@ class EventCfg:
         mode="reset",
         params={
             "target_asset_cfg": SceneEntityCfg("table_A"),
-            "position_offset": (0.0, 2.0, .25),
+            "position_offset": (0.0, 2.0, .35),
         }
     )
 
@@ -639,6 +639,7 @@ class LongCorridorEnvCfg(ManagerBasedRLEnvCfg):
         # simulation settings
         self.sim.dt = 0.005
         self.sim.render_interval = self.decimation
+        # self.sim.gravity = (0.0, 0.0, -1000)
         # self.sim.physics_material = self.scene.terrain.physics_material
         self.sim.physx.gpu_max_rigid_patch_count = 10 * 2**15       
         # table_pos = self.scene.table_A.init_state.pos
