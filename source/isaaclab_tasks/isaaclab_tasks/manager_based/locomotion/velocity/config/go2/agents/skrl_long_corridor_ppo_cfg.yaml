@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-seed: 31
+seed: 42
 
 
 # Models are instantiated using skrl's model instantiator utility

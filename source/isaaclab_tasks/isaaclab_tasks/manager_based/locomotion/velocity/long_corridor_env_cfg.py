@@ -330,7 +330,7 @@ class CommandsCfg:
         heading_control_stiffness=0.5,
         debug_vis=True,
         ranges=mdp.UniformVelocityCommandCfg.Ranges(
-            lin_vel_x=(-1.0, 1.0), lin_vel_y=(-1.0, 1.0), ang_vel_z=(-1.0, 1.0), heading=(-math.pi, math.pi)
+            lin_vel_x=(-0.0, 0.0), lin_vel_y=(-1.0, 1.0), ang_vel_z=(-1.0, 1.0), heading=(-math.pi, math.pi)
         ),
     )
 
@@ -408,7 +408,7 @@ class EventCfg:
         mode="reset",
         params={
             "target_asset_cfg": SceneEntityCfg("table_A"),
-            "position_offset": (0.0, 2.0, .35),
+            "position_offset": (0.0, 2.0, .4),
         }
     )
 
@@ -572,8 +572,8 @@ class RewardsCfg:
         },
     )
     # -- optional penalties
-    flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=0.0)
-    dof_pos_limits = RewTerm(func=mdp.joint_pos_limits, weight=0.0)
+    flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=0.05)
+    dof_pos_limits = RewTerm(func=mdp.joint_pos_limits, weight=0.05)
 
 
 # def patrol_finished(env, command_name: str = "base_velocity"):
@@ -635,7 +635,10 @@ class LongCorridorEnvCfg(ManagerBasedRLEnvCfg):
         """Post initialization."""
         # general settings
         self.decimation = 4
-        self.episode_length_s = 40.0
+        self.episode_length_s = 60.0
+        # viewer settings
+        self.viewer.eye = [0.0, -25.0, 3.0]
+        self.viewer.lookat = [0.0, -30.0, 3.0]
         # simulation settings
         self.sim.dt = 0.005
         self.sim.render_interval = self.decimation
