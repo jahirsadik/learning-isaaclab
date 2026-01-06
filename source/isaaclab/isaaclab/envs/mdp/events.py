@@ -17,7 +17,7 @@ from __future__ import annotations
 import math
 import re
 import torch
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, List, Literal, Sequence
 
 import carb
 import omni.physics.tensors.impl.api as physx
@@ -1140,6 +1140,49 @@ def reset_rigid_object_near_target(
     velocities = torch.zeros((len(env_ids), 6), device=rigid_object.device)
     rigid_object.write_root_pose_to_sim(torch.cat([positions, orientations], dim=-1), env_ids=env_ids)
     rigid_object.write_root_velocity_to_sim(velocities, env_ids=env_ids)
+
+
+def spawn_objects_in_location(
+    env: ManagerBasedEnv,
+    env_ids: torch.Tensor | None,
+    starting_asset_cfg: SceneEntityCfg = SceneEntityCfg("table_A"),
+    asset_cfgs: list[SceneEntityCfg] | None = None,
+    number_of_objects: int = 4,
+    position_offsets: Sequence[tuple[float, float, float]] | None = None,
+    orientations: Sequence[tuple[float, float, float, float]] | None = None
+):
+    if asset_cfgs is None:
+        return
+
+    # --- FIX 1: Don't subtract 1. We need one offset per object. ---
+    # If the user supplies offsets, ensure we have enough; otherwise generate N defaults.
+    if position_offsets is None:
+        position_offsets = [(0.0, 1.0, 0.0)] * number_of_objects
+    
+    if orientations is None:
+        orientations = [(1.0, 0.0, 0.0, 0.0)] * number_of_objects
+
+    starting_asset: RigidObject = env.scene[starting_asset_cfg.name]
+    assets = [] 
+    for i in range(number_of_objects):
+        assets.append(env.scene[asset_cfgs[i].name])
+
+    # Ensure tensors are created with the correct length
+    position_offsets_tensor = torch.tensor(position_offsets[:number_of_objects], device=starting_asset.device)
+    orientations_tensor = torch.tensor(orientations[:number_of_objects], device=starting_asset.device)
+    
+    starting_pos = starting_asset.data.root_pos_w[env_ids]
+    velocities = torch.zeros((len(env_ids), 6), device=starting_asset.device)
+    
+    for i, asset in enumerate(assets):
+        cumulative_offset = position_offsets_tensor[:i+1].sum(dim=0)
+        
+        positions = starting_pos + cumulative_offset
+        
+        orientations_batched = orientations_tensor[i].repeat(len(env_ids), 1)
+        
+        asset.write_root_pose_to_sim(torch.cat([positions, orientations_batched], dim=-1), env_ids=env_ids)
+        asset.write_root_velocity_to_sim(velocities, env_ids=env_ids)
 
 
 PLACEMENT_INDEX = None 

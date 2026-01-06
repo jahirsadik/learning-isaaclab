@@ -46,7 +46,8 @@ from isaaclab.managers import CommandTerm, CommandTermCfg
 from isaaclab.utils.math import wrap_to_pi, quat_rotate_inverse, yaw_quat
 
 DATA_DIR = "/home/jahirsadikmonon/Documents/Projects/usds"
-
+NUM_CUBOIDS = 10
+SPACING = 10.0
 
 @configclass
 class LongCorridorCfg(InteractiveSceneCfg):
@@ -176,7 +177,21 @@ class LongCorridorCfg(InteractiveSceneCfg):
         init_state=RigidObjectCfg.InitialStateCfg(),
     )
 
-
+    for i in range(NUM_CUBOIDS):  # or range(NUM_CUBOIDS)
+        locals()[f"cuboid_in_path_{i}"] = RigidObjectCfg(
+            prim_path=f"{{ENV_REGEX_NS}}/Cuboid_in_path_{i}",
+            spawn=sim_utils.CuboidCfg(
+                size=(0.2, 0.2, 0.2),
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(rigid_body_enabled=True),
+                mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
+                collision_props=sim_utils.CollisionPropertiesCfg(),
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 0.0)),
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(),
+        )
+    
+    # !!! CRITICAL FIX: Delete the loop variable so it doesn't become a class attribute !!!
+    del i
 
     # robots
     robot: ArticulationCfg = MISSING
@@ -453,6 +468,20 @@ class EventCfg:
                 SceneEntityCfg("cuboid_B"),
             ],
             "position_offset": (0.65, 0.0, 0.85),
+        }
+    )
+
+    spawn_cuboids_in_path = EventTerm(
+        func=mdp.spawn_objects_in_location,
+        mode="reset",
+        params={
+            "starting_asset_cfg": SceneEntityCfg("table_A"),
+            "asset_cfgs": [
+                SceneEntityCfg(f"cuboid_in_path_{i}") 
+                for i in range(NUM_CUBOIDS) 
+            ],
+            "number_of_objects": NUM_CUBOIDS,
+            "position_offsets": [(0.0, SPACING, 0.0)] * (NUM_CUBOIDS),
         }
     )
 
