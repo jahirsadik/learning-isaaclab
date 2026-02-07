@@ -54,19 +54,24 @@ SPAWN_TABLE_A_OBJECTS = False
 
 # Module-level constant for cuboid colors
 DIFFUSE_COLORS = [
-    (1.0, 0.0, 0.0),  # Red
-    (0.0, 1.0, 0.0),  # Green
-    (0.0, 0.0, 1.0),  # Blue
-    (1.0, 1.0, 0.0),  # Yellow
-    (1.0, 0.0, 1.0),  # Magenta
-    (0.0, 1.0, 1.0),  # Cyan
-    (0.5, 0.5, 0.5),  # Gray
-    (1.0, 0.5, 0.0),  # Orange
-    (0.5, 0.0, 0.5),  # Purple
-    (0.0, 0.5, 0.5),  # Teal
-    (0.5, 0.5, 0.0),  # Olive
-    (0.5, 0.0, 0.0),  # Maroon
-    (0.0, 0.5, 0.0),  # Dark Green
+    # Group 1: Primary hues at maximum saturation
+    (1.0, 0.0, 0.0),      # Red
+    (0.0, 1.0, 0.0),      # Green
+    (0.0, 0.0, 1.0),      # Blue
+    # Group 2: Secondary hues at maximum saturation
+    (1.0, 1.0, 0.0),      # Yellow
+    (1.0, 0.0, 1.0),      # Magenta
+    (0.0, 1.0, 1.0),      # Cyan
+    # Group 3: Tertiary hues spaced equally around color wheel
+    # (1.0, 0.5, 0.0),      # Orange (30°)
+    # (0.5, 1.0, 0.0),      # Chartreuse (90°)
+    # (0.0, 1.0, 0.5),      # Spring Green (150°)
+    # (0.0, 0.5, 1.0),      # Azure (210°)
+    # (0.5, 0.0, 1.0),      # Violet (270°)
+    # (1.0, 0.0, 0.5),      # Rose (330°)
+    # High contrast achromatic
+    (0.0, 0.0, 0.0),      # Black
+    (1.0, 1.0, 1.0),      # White
 ]
 
 @configclass
@@ -208,11 +213,10 @@ class LongCorridorCfg(InteractiveSceneCfg):
                     rigid_props=sim_utils.RigidBodyPropertiesCfg(rigid_body_enabled=True),
                     mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
                     collision_props=sim_utils.CollisionPropertiesCfg(),
-                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=DIFFUSE_COLORS[i % len(DIFFUSE_COLORS)], metallic=0.1)
+                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=DIFFUSE_COLORS[i % len(DIFFUSE_COLORS)], metallic=0.4)
                 ),
                 init_state=RigidObjectCfg.InitialStateCfg(),
-            )
-        
+            )       
         # !!! CRITICAL FIX: Delete the loop variable so it doesn't become a class attribute !!!
         del i
 
