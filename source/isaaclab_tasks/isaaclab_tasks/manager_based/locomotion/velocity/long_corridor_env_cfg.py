@@ -46,8 +46,11 @@ from isaaclab.managers import CommandTerm, CommandTermCfg
 from isaaclab.utils.math import wrap_to_pi, quat_rotate_inverse, yaw_quat
 
 DATA_DIR = "/home/jahirsadikmonon/Documents/Projects/usds"
-NUM_CUBOIDS = 10
-SPACING = 10.0
+NUM_CUBOIDS = 2
+SPACING = 30.0
+SPAWN_CUBOIDS_IN_PATH = True
+SPAWN_TABLE_B_OBJECTS = True
+SPAWN_TABLE_A_OBJECTS = True
 
 @configclass
 class LongCorridorCfg(InteractiveSceneCfg):
@@ -81,55 +84,57 @@ class LongCorridorCfg(InteractiveSceneCfg):
         init_state=RigidObjectCfg.InitialStateCfg(),
     )
 
-    cone_A = RigidObjectCfg(
+    if SPAWN_TABLE_A_OBJECTS:
+        cone_A = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/ConeA",
-        spawn=sim_utils.ConeCfg(
-            radius=0.1,
-            height=0.2,
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                rigid_body_enabled=True,
-                kinematic_enabled=False,  # Make sure it's NOT kinematic
-                disable_gravity=False,
+            spawn=sim_utils.ConeCfg(
+                radius=0.1,
+                height=0.2,
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(
+                    rigid_body_enabled=True,
+                    kinematic_enabled=False,  # Make sure it's NOT kinematic
+                    disable_gravity=False,
+                ),
+                mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+                collision_props=sim_utils.CollisionPropertiesCfg(
+                    contact_offset=0.05, # Increase this
+                    rest_offset=0.005,    # Add a tiny gap
+                ),
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0), metallic=0.2),
             ),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-            collision_props=sim_utils.CollisionPropertiesCfg(
-                contact_offset=0.05, # Increase this
-                rest_offset=0.005,    # Add a tiny gap
+            init_state=RigidObjectCfg.InitialStateCfg(),
+        )   
+
+        custObj_A = RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/CustomMeshA",
+            spawn=sim_utils.UsdFileCfg(
+                scale=(2.0, 2.0, 2.0),   
+                usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+                mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
+                collision_props=sim_utils.CollisionPropertiesCfg(),
             ),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0), metallic=0.2),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(),
-    )
+            init_state=RigidObjectCfg.InitialStateCfg(),
+        )
 
-    custObj_A = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/CustomMeshA",
-        spawn=sim_utils.UsdFileCfg(
-            scale=(2.0, 2.0, 2.0),   
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(),
-    )
-
-    cuboid_A = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/CuboidA",
-        spawn=sim_utils.CuboidCfg(
-            size=(0.2, 0.2, 0.2),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                rigid_body_enabled=True,
-                kinematic_enabled=False,
-                disable_gravity=False,
+        cuboid_A = RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/CuboidA",
+            spawn=sim_utils.CuboidCfg(
+                size=(0.2, 0.2, 0.2),
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(
+                    rigid_body_enabled=True,
+                    kinematic_enabled=False,
+                    disable_gravity=False,
+                ),
+                mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+                collision_props=sim_utils.CollisionPropertiesCfg(),
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0), metallic=0.2),
             ),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0), metallic=0.2),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(),
-    )
+            init_state=RigidObjectCfg.InitialStateCfg(),
+        )
 
-    cone_B = RigidObjectCfg(
+    if SPAWN_TABLE_B_OBJECTS:
+        cone_B = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/ConeB",
         spawn=sim_utils.ConeCfg(
             radius=0.1,
@@ -145,53 +150,54 @@ class LongCorridorCfg(InteractiveSceneCfg):
                 rest_offset=0.005,    # Add a tiny gap
             ),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 1.0), metallic=0.2),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(),
-    )
-
-    custObj_B = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/CustomMeshB",
-        spawn=sim_utils.UsdFileCfg(
-            scale=(2.0, 2.0, 2.0),   
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(),
-    )
-
-    cuboid_B = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/CuboidB",
-        spawn=sim_utils.CuboidCfg(
-            size=(0.2, 0.2, 0.2),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                rigid_body_enabled=True,
-                kinematic_enabled=False,
-                disable_gravity=False,
-            ),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 1.0, 0.0), metallic=0.2),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(),
-    )
-
-    for i in range(NUM_CUBOIDS):  # or range(NUM_CUBOIDS)
-        locals()[f"cuboid_in_path_{i}"] = RigidObjectCfg(
-            prim_path=f"{{ENV_REGEX_NS}}/Cuboid_in_path_{i}",
-            spawn=sim_utils.CuboidCfg(
-                size=(0.2, 0.2, 0.2),
-                rigid_props=sim_utils.RigidBodyPropertiesCfg(rigid_body_enabled=True),
-                mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
-                collision_props=sim_utils.CollisionPropertiesCfg(),
-                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 0.0)),
             ),
             init_state=RigidObjectCfg.InitialStateCfg(),
         )
-    
-    # !!! CRITICAL FIX: Delete the loop variable so it doesn't become a class attribute !!!
-    del i
+
+        custObj_B = RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/CustomMeshB",
+            spawn=sim_utils.UsdFileCfg(
+                scale=(2.0, 2.0, 2.0),   
+                usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+                mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
+                collision_props=sim_utils.CollisionPropertiesCfg(),
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(),
+        )
+
+        cuboid_B = RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/CuboidB",
+            spawn=sim_utils.CuboidCfg(
+                size=(0.2, 0.2, 0.2),
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(
+                    rigid_body_enabled=True,
+                    kinematic_enabled=False,
+                    disable_gravity=False,
+                ),
+                mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+                collision_props=sim_utils.CollisionPropertiesCfg(),
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 1.0, 0.0), metallic=0.2),
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(),
+        )
+
+    if SPAWN_CUBOIDS_IN_PATH:
+        for i in range(NUM_CUBOIDS):  # or range(NUM_CUBOIDS)
+            locals()[f"cuboid_in_path_{i}"] = RigidObjectCfg(
+                prim_path=f"{{ENV_REGEX_NS}}/Cuboid_in_path_{i}",
+                spawn=sim_utils.CuboidCfg(
+                    size=(0.6, 0.6, 0.6),
+                    rigid_props=sim_utils.RigidBodyPropertiesCfg(rigid_body_enabled=True),
+                    mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
+                    collision_props=sim_utils.CollisionPropertiesCfg(),
+                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 0.0)),
+                ),
+                init_state=RigidObjectCfg.InitialStateCfg(),
+            )
+        
+        # !!! CRITICAL FIX: Delete the loop variable so it doesn't become a class attribute !!!
+        del i
 
     # robots
     robot: ArticulationCfg = MISSING
@@ -427,63 +433,66 @@ class EventCfg:
         }
     )
 
-    reset_cone_A = EventTerm(
-        func=mdp.reset_rigid_object_near_target,
-        mode="reset",
-        params={
-            "target_asset_cfg": SceneEntityCfg("table_A"),
-            "rigid_object_cfg": SceneEntityCfg("cone_A"),
-            "position_offset": (-0.65, 0.0, .85),
-        }
-    )
+    if SPAWN_TABLE_A_OBJECTS:
+        reset_cone_A = EventTerm(
+            func=mdp.reset_rigid_object_near_target,
+            mode="reset",
+            params={
+                "target_asset_cfg": SceneEntityCfg("table_A"),
+                "rigid_object_cfg": SceneEntityCfg("cone_A"),
+                "position_offset": (-0.65, 0.0, .85),
+            }
+        )
 
-    reset_custObj_A = EventTerm(
-        func=mdp.reset_rigid_object_near_target,
-        mode="reset",
-        params={
-            "target_asset_cfg": SceneEntityCfg("table_A"),
-            "rigid_object_cfg": SceneEntityCfg("custObj_A"),
-            "position_offset": (0.0, 0.0, 0.85),
-        }
-    )
+        reset_custObj_A = EventTerm(
+            func=mdp.reset_rigid_object_near_target,
+            mode="reset",
+            params={
+                "target_asset_cfg": SceneEntityCfg("table_A"),
+                "rigid_object_cfg": SceneEntityCfg("custObj_A"),
+                "position_offset": (0.0, 0.0, 0.85),
+            }
+        )
 
-    reset_cuboid_A = EventTerm(
-        func=mdp.reset_rigid_object_near_target,
-        mode="reset",
-        params={
-            "target_asset_cfg": SceneEntityCfg("table_A"),
-            "rigid_object_cfg": SceneEntityCfg("cuboid_A"),
-            "position_offset": (0.65, 0.0, 0.85),
-        }
-    )
+        reset_cuboid_A = EventTerm(
+            func=mdp.reset_rigid_object_near_target,
+            mode="reset",
+            params={
+                "target_asset_cfg": SceneEntityCfg("table_A"),
+                "rigid_object_cfg": SceneEntityCfg("cuboid_A"),
+                "position_offset": (0.65, 0.0, 0.85),
+            }
+        )
 
-    reset_table_B_objects = EventTerm(
-        func=mdp.randomized_slot_placement,
-        mode="reset",
-        params={
-            "target_asset_cfg": SceneEntityCfg("table_B"),
-            "object_list_cfgs": [
-                SceneEntityCfg("cone_B"), 
-                SceneEntityCfg("custObj_B"), 
-                SceneEntityCfg("cuboid_B"),
-            ],
-            "position_offset": (0.65, 0.0, 0.85),
-        }
-    )
+    if SPAWN_TABLE_B_OBJECTS:
+        reset_table_B_objects = EventTerm(
+            func=mdp.randomized_slot_placement,
+            mode="reset",
+            params={
+                "target_asset_cfg": SceneEntityCfg("table_B"),
+                "object_list_cfgs": [
+                    SceneEntityCfg("cone_B"), 
+                    SceneEntityCfg("custObj_B"), 
+                    SceneEntityCfg("cuboid_B"),
+                ],
+                "position_offset": (0.65, 0.0, 0.85),
+            }
+        )
 
-    spawn_cuboids_in_path = EventTerm(
-        func=mdp.spawn_objects_in_location,
-        mode="reset",
-        params={
-            "starting_asset_cfg": SceneEntityCfg("table_A"),
-            "asset_cfgs": [
-                SceneEntityCfg(f"cuboid_in_path_{i}") 
-                for i in range(NUM_CUBOIDS) 
-            ],
-            "number_of_objects": NUM_CUBOIDS,
-            "position_offsets": [(0.0, SPACING, 0.0)] * (NUM_CUBOIDS),
-        }
-    )
+    if SPAWN_CUBOIDS_IN_PATH:
+        spawn_cuboids_in_path = EventTerm(
+            func=mdp.spawn_objects_in_location,
+            mode="reset",
+            params={
+                "starting_asset_cfg": SceneEntityCfg("table_A"),
+                "asset_cfgs": [
+                    SceneEntityCfg(f"cuboid_in_path_{i}") 
+                    for i in range(NUM_CUBOIDS) 
+                ],
+                "number_of_objects": NUM_CUBOIDS,
+                "position_offsets": [(0.0, SPACING, 0.0)] * (NUM_CUBOIDS),
+            }
+        )
 
     # startup
     physics_material = EventTerm(
