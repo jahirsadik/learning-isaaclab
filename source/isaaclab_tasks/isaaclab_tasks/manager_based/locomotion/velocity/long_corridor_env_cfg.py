@@ -46,11 +46,28 @@ from isaaclab.managers import CommandTerm, CommandTermCfg
 from isaaclab.utils.math import wrap_to_pi, quat_rotate_inverse, yaw_quat
 
 DATA_DIR = "/home/jahirsadikmonon/Documents/Projects/usds"
-NUM_CUBOIDS = 2
-SPACING = 30.0
+NUM_CUBOIDS = 13
+SPACING = 7.0
 SPAWN_CUBOIDS_IN_PATH = True
-SPAWN_TABLE_B_OBJECTS = True
-SPAWN_TABLE_A_OBJECTS = True
+SPAWN_TABLE_B_OBJECTS = False
+SPAWN_TABLE_A_OBJECTS = False
+
+# Module-level constant for cuboid colors
+DIFFUSE_COLORS = [
+    (1.0, 0.0, 0.0),  # Red
+    (0.0, 1.0, 0.0),  # Green
+    (0.0, 0.0, 1.0),  # Blue
+    (1.0, 1.0, 0.0),  # Yellow
+    (1.0, 0.0, 1.0),  # Magenta
+    (0.0, 1.0, 1.0),  # Cyan
+    (0.5, 0.5, 0.5),  # Gray
+    (1.0, 0.5, 0.0),  # Orange
+    (0.5, 0.0, 0.5),  # Purple
+    (0.0, 0.5, 0.5),  # Teal
+    (0.5, 0.5, 0.0),  # Olive
+    (0.5, 0.0, 0.0),  # Maroon
+    (0.0, 0.5, 0.0),  # Dark Green
+]
 
 @configclass
 class LongCorridorCfg(InteractiveSceneCfg):
@@ -187,11 +204,11 @@ class LongCorridorCfg(InteractiveSceneCfg):
             locals()[f"cuboid_in_path_{i}"] = RigidObjectCfg(
                 prim_path=f"{{ENV_REGEX_NS}}/Cuboid_in_path_{i}",
                 spawn=sim_utils.CuboidCfg(
-                    size=(0.6, 0.6, 0.6),
+                    size=(0.5, 0.5, 0.5),
                     rigid_props=sim_utils.RigidBodyPropertiesCfg(rigid_body_enabled=True),
                     mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
                     collision_props=sim_utils.CollisionPropertiesCfg(),
-                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 0.0)),
+                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=DIFFUSE_COLORS[i % len(DIFFUSE_COLORS)], metallic=0.1)
                 ),
                 init_state=RigidObjectCfg.InitialStateCfg(),
             )
