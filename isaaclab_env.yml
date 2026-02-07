@@ -1,0 +1,7 @@
+name: env_isaaclab
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - cmake=3.28
+prefix: /home/jahirsadikmonon/miniforge3/envs/env_isaaclab
