@@ -46,8 +46,8 @@ from isaaclab.managers import CommandTerm, CommandTermCfg
 from isaaclab.utils.math import wrap_to_pi, quat_rotate_inverse, yaw_quat
 
 DATA_DIR = "/home/jahirsadikmonon/Documents/Projects/usds"
-NUM_CUBOIDS = 13
-SPACING = 7.0
+NUM_CUBOIDS = 2
+SPACING = 30.0
 SPAWN_CUBOIDS_IN_PATH = True
 SPAWN_TABLE_B_OBJECTS = False
 SPAWN_TABLE_A_OBJECTS = False
