@@ -1,2 +1,5 @@
 Sample run script:
 ./isaaclab.sh -p scripts/reinforcement_learning/skrl/play.py --task Isaac-LongCorridor-Custom-Unitree-Go2-Play-v0 --num_envs=1 --checkpoint /home/jahirsadikmonon/Documents/Projects/IsaacLab/logs/skrl/unitree_go2_long_corridor/2025-12-23_19-30-24_ppo_torch/checkpoints/best_agent.pt
+
+Synthetic data generation:
+./isaaclab.sh -p scripts/long_corridor_env_simulation_with_camera2.py --camera --frames 200
