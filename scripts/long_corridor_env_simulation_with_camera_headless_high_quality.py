@@ -50,6 +50,7 @@ from isaaclab.managers import (
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass
 from isaaclab.sim import UsdFileCfg
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 # Native IsaacLab Sensors
 from isaaclab.sensors import CameraCfg
@@ -62,10 +63,10 @@ import isaaclab_tasks.manager_based.locomotion.velocity.mdp as mdp
 # ============================================================================
 DATA_DIR               = "/home/jahirsadikmonon/Documents/Projects/usds"
 NUM_CUBOIDS            = 5
-SPACING                = 30.0
+SPACING                = 10.0
 SPAWN_CUBOIDS_IN_PATH  = True
-SPAWN_TABLE_B_OBJECTS  = False
-SPAWN_TABLE_A_OBJECTS  = False
+SPAWN_TABLE_B_OBJECTS  = True
+SPAWN_TABLE_A_OBJECTS  = True
 
 DIFFUSE_COLORS = [
     (1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0),
@@ -137,19 +138,87 @@ class NoRobotSceneCfg(InteractiveSceneCfg):
     )
 
     if SPAWN_TABLE_A_OBJECTS:
+        cone_A = RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/ConeA",
+            spawn=sim_utils.ConeCfg(
+                radius=0.1,
+                height=0.2,
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(
+                    rigid_body_enabled=True,
+                    kinematic_enabled=False,
+                    disable_gravity=False,
+                ),
+                mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+                collision_props=sim_utils.CollisionPropertiesCfg(
+                    contact_offset=0.05,
+                    rest_offset=0.005,
+                ),
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0), metallic=0.2),
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(),
+        )
+
+        custObj_A = RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/CustomMeshA",
+            spawn=sim_utils.UsdFileCfg(
+                scale=(2.0, 2.0, 2.0),
+                usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+                mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
+                collision_props=sim_utils.CollisionPropertiesCfg(),
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(),
+        )
+
         cuboid_A = RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/CuboidA",
             spawn=sim_utils.CuboidCfg(
                 size=(0.2, 0.2, 0.2),
-                rigid_props=sim_utils.RigidBodyPropertiesCfg(rigid_body_enabled=True),
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(
+                    rigid_body_enabled=True,
+                    kinematic_enabled=False,
+                    disable_gravity=False,
+                ),
                 mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
                 collision_props=sim_utils.CollisionPropertiesCfg(),
-                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0), metallic=0.2),
             ),
             init_state=RigidObjectCfg.InitialStateCfg(),
         )
 
     if SPAWN_TABLE_B_OBJECTS:
+        cone_B = RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/ConeB",
+            spawn=sim_utils.ConeCfg(
+                radius=0.1,
+                height=0.2,
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(
+                    rigid_body_enabled=True,
+                    kinematic_enabled=False,
+                    disable_gravity=False,
+                ),
+                mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+                collision_props=sim_utils.CollisionPropertiesCfg(
+                    contact_offset=0.05,
+                    rest_offset=0.005,
+                ),
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 1.0), metallic=0.2),
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(),
+        )
+
+        custObj_B = RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/CustomMeshB",
+            spawn=sim_utils.UsdFileCfg(
+                scale=(2.0, 2.0, 2.0),
+                usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+                mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
+                collision_props=sim_utils.CollisionPropertiesCfg(),
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(),
+        )
+
         cuboid_B = RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/CuboidB",
             spawn=sim_utils.CuboidCfg(
@@ -190,6 +259,52 @@ class NoRobotObservationsCfg:
 
 @configclass
 class NoRobotEventCfg:
+    if SPAWN_TABLE_A_OBJECTS:
+        reset_cone_A = EventTerm(
+            func=mdp.reset_rigid_object_near_target,
+            mode="reset",
+            params={
+                "target_asset_cfg": SceneEntityCfg("table_A"),
+                "rigid_object_cfg": SceneEntityCfg("cone_A"),
+                "position_offset": (-0.65, 0.0, 0.85),
+            },
+        )
+
+        reset_custObj_A = EventTerm(
+            func=mdp.reset_rigid_object_near_target,
+            mode="reset",
+            params={
+                "target_asset_cfg": SceneEntityCfg("table_A"),
+                "rigid_object_cfg": SceneEntityCfg("custObj_A"),
+                "position_offset": (0.0, 0.0, 0.85),
+            },
+        )
+
+        reset_cuboid_A = EventTerm(
+            func=mdp.reset_rigid_object_near_target,
+            mode="reset",
+            params={
+                "target_asset_cfg": SceneEntityCfg("table_A"),
+                "rigid_object_cfg": SceneEntityCfg("cuboid_A"),
+                "position_offset": (0.65, 0.0, 0.85),
+            },
+        )
+
+    if SPAWN_TABLE_B_OBJECTS:
+        reset_table_B_objects = EventTerm(
+            func=mdp.randomized_slot_placement,
+            mode="reset",
+            params={
+                "target_asset_cfg": SceneEntityCfg("table_B"),
+                "object_list_cfgs": [
+                    SceneEntityCfg("cone_B"),
+                    SceneEntityCfg("custObj_B"),
+                    SceneEntityCfg("cuboid_B"),
+                ],
+                "position_offset": (0.65, 0.0, 0.85),
+            },
+        )
+
     if SPAWN_CUBOIDS_IN_PATH:
         spawn_cuboids_in_path = EventTerm(
             func=mdp.spawn_objects_in_location,
