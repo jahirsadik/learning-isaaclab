@@ -59,9 +59,14 @@ from isaaclab.actuators import ImplicitActuatorCfg
 DATA_DIR = "/home/jahirsadikmonon/Documents/Projects/usds"
 NUM_CUBOIDS = 2
 SPACING = 30.0
-SPAWN_CUBOIDS_IN_PATH = True
-SPAWN_TABLE_B_OBJECTS = False
-SPAWN_TABLE_A_OBJECTS = False
+SPAWN_CUBOIDS_IN_PATH = False
+SPAWN_TABLE_B_OBJECTS = True
+SPAWN_TABLE_A_OBJECTS = True
+
+# Sequential landmark navigation settings
+# Robot starts near table_A, navigates to table_B, then returns to table_A, and loops.
+LANDMARK_NAMES = ["table_B", "table_A"]
+GOAL_REACH_THRESHOLD = 30.0 # meters - distance to consider a landmark reached
 
 # Module-level constant for cuboid colors
 DIFFUSE_COLORS = [
@@ -80,8 +85,14 @@ DIFFUSE_COLORS = [
 
 # ============================= JETBOT CONFIGURATION =============================
 
+ROBOT_SCALE = 5.0      # Scale factor applied to the Jetbot geometry (1.0 = original size)
+VELOCITY_SCALE = 3.0  # Scale factor applied to all velocity limits and gains (1.0 = baseline)
+
 JETBOT_CFG = ArticulationCfg(
-    spawn=sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/NVIDIA/Jetbot/jetbot.usd"),
+    spawn=sim_utils.UsdFileCfg(
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/NVIDIA/Jetbot/jetbot.usd",
+        scale=(ROBOT_SCALE, ROBOT_SCALE, ROBOT_SCALE),
+    ),
     actuators={"wheel_acts": ImplicitActuatorCfg(joint_names_expr=[".*"], damping=None, stiffness=None)},
 )
 """Configuration for the Jetbot wheeled robot."""
@@ -92,7 +103,7 @@ class LongCorridorWheeledRobotSceneCfg(InteractiveSceneCfg):
     # ground terrain
     ground = AssetBaseCfg(
         prim_path="/World/defaultGroundPlane",
-        spawn=sim_utils.GroundPlaneCfg(size=(1000000, 1000)),
+        spawn=sim_utils.GroundPlaneCfg(size=(100000, 100000)),
         init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, 0.0)),
     )
 
@@ -386,25 +397,25 @@ class GoalBasedWheelActionCfg:
     asset_name: str = "jetbot"
     """Name of the robot asset in the scene."""
     
-    # Control parameters
-    linear_gain: float = 1.0
+    # Control parameters (scaled by VELOCITY_SCALE; baseline values are for original-size Jetbot)
+    linear_gain: float = 1.5 * VELOCITY_SCALE
     """Proportional gain for linear velocity control (m/s per meter error)."""
-    
-    angular_gain: float = 1.0
+
+    angular_gain: float = 2.0 * VELOCITY_SCALE
     """Proportional gain for angular velocity control (rad/s per radian error)."""
-    
-    max_linear_vel: float = 3.0
+
+    max_linear_vel: float = 3.0 * VELOCITY_SCALE
     """Maximum linear velocity (m/s)."""
-    
-    max_angular_vel: float = 2.0
+
+    max_angular_vel: float = 2.0 * VELOCITY_SCALE
     """Maximum angular velocity (rad/s)."""
-    
-    # Wheel parameters
-    wheel_base: float = 0.16
-    """Distance between left and right wheels (m). Jetbot is ~0.16m."""
-    
-    wheel_radius: float = 0.032
-    """Wheel radius (m). Jetbot wheels are ~0.032m."""
+
+    # Wheel parameters scaled by ROBOT_SCALE (original Jetbot: base=0.16m, radius=0.032m)
+    wheel_base: float = 0.16 * ROBOT_SCALE
+    """Distance between left and right wheels (m)."""
+
+    wheel_radius: float = 0.032 * ROBOT_SCALE
+    """Wheel radius (m)."""
     
     # Base class required attributes
     debug_vis: bool = False
@@ -544,82 +555,81 @@ class LongCorridorWheeledEnvCfg(ManagerBasedEnvCfg):
 
 def main():
     """Main function to run the long corridor wheeled robot environment."""
-    # Create environment configuration
     env_cfg = LongCorridorWheeledEnvCfg()
     env_cfg.scene.num_envs = args_cli.num_envs
     env_cfg.sim.device = args_cli.device
-    
-    # Setup base environment
+
     env = ManagerBasedEnv(cfg=env_cfg)
-    
-    # Register custom goal-based wheel action term with the action manager
-    # This is done after environment creation to inject our custom action term
+
     goal_action_cfg = GoalBasedWheelActionCfg(asset_name="jetbot")
-    
-    # Note: In a real scenario, you would register this in the config pre-environment creation.
-    # For demonstration, we'll handle actions manually for now.
-    
-    print("-" * 80)
-    print("[INFO]: Initialized long corridor environment with {} environments".format(args_cli.num_envs))
-    print("[INFO]: Action space: 3D goal poses [x, y, yaw]")
-    print("[INFO]: Observation space: base position, linear velocity, angular velocity")
-    print("-" * 80)
-    
-    # Get robot reference for manual action conversion
-    robot = env.scene["jetbot"]
-    
-    # Simulation loop
-    count = 0
-    current_goals = torch.zeros(env.num_envs, 3, device=env.device)
-    
-    # Set some initial goal poses for different environments
-    # e.g., different goal positions for each environment pair
-    for i in range(min(env.num_envs, 32)):
-        # Alternate between two goals
-        angle = (i % 2) * 3.14159
-        distance = 2.0 + (i % 4) * 0.5
-        current_goals[i, 0] = distance * torch.cos(torch.tensor(angle))
-        current_goals[i, 1] = distance * torch.sin(torch.tensor(angle))
-        current_goals[i, 2] = angle
-    
-    # Create action term instance for manual action conversion
     action_term = GoalBasedWheelAction(goal_action_cfg, env)
-    
+    robot = env.scene["jetbot"]
+
+    print("-" * 80)
+    print(f"[INFO]: Initialized long corridor environment with {args_cli.num_envs} environments")
+    print(f"[INFO]: Landmark navigation sequence: {LANDMARK_NAMES}")
+    print(f"[INFO]: Goal reach threshold: {GOAL_REACH_THRESHOLD} m")
+    print("-" * 80)
+
+    # Per-env index into LANDMARK_NAMES indicating the current navigation target
+    num_landmarks = len(LANDMARK_NAMES)
+    landmark_idx = torch.zeros(env.num_envs, dtype=torch.long, device=env.device)
+    # Track which envs have finished all landmarks
+    done = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
+
+    # Initial reset to place the robot near table_A
+    env.reset()
+    count = 0
+
     while simulation_app.is_running():
         with torch.inference_mode():
-            # Reset every 300 steps
-            if count % 300 == 0:
-                count = 0
-                env.reset()
-                print("[INFO]: Resetting environment...")
-                print("[INFO]: Robot positions (sample):")
-                print(f"  - Env 0 pos: {robot.data.root_pos_w[0, :2]}")
-                print(f"  - Env 1 pos: {robot.data.root_pos_w[1, :2] if env.num_envs > 1 else 'N/A'}")
-            
-            # Update goal poses - could also sample random goals here
-            # or use a goal generator/planner
-            actions = current_goals.clone()
-            
-            # Convert goal poses to wheel velocities using the action term
-            action_term.apply_actions(actions)
-            
-            # Get processed wheel velocities
-            wheel_vels = action_term.processed_actions.clone()  # [v, omega]
-            
-            # Step environment - action manager has 0 dims (actions applied manually above)
+            # Stack landmark world positions: (num_envs, num_landmarks, 3)
+            # Each landmark is a RigidObject so .data.root_pos_w has shape (num_envs, 3)
+            landmark_positions = torch.stack(
+                [env.scene[name].data.root_pos_w for name in LANDMARK_NAMES], dim=1
+            )  # (num_envs, num_landmarks, 3)
+
+            # Select the current target landmark position for each env
+            env_indices = torch.arange(env.num_envs, device=env.device)
+            current_goal_pos = landmark_positions[env_indices, landmark_idx]  # (num_envs, 3)
+
+            # Build [goal_x, goal_y, goal_yaw] tensor (yaw=0, controller steers toward goal)
+            current_goals = torch.zeros(env.num_envs, 3, device=env.device)
+            current_goals[:, :2] = current_goal_pos[:, :2]
+
+            # Check distance from each robot to its current target landmark
+            robot_xy = robot.data.root_pos_w[:, :2]  # (num_envs, 2)
+            dist_to_goal = torch.norm(current_goal_pos[:, :2] - robot_xy, dim=1)  # (num_envs,)
+
+            # Advance landmark for envs that reached their goal and aren't done yet
+            reached = (dist_to_goal < GOAL_REACH_THRESHOLD) & ~done
+            at_last = landmark_idx == (num_landmarks - 1)
+            # Mark done for envs that just reached the final landmark
+            done |= reached & at_last
+            # Advance index for envs that reached a non-final landmark
+            landmark_idx = torch.where(reached & ~at_last, landmark_idx + 1, landmark_idx)
+
+            if done.all():
+                print("[INFO]: All environments have completed the landmark sequence. Closing.")
+                break
+
+            # Apply wheel velocity commands computed from current goals
+            action_term.apply_actions(current_goals)
+
+            # Step simulation (action manager has 0 dims; control applied directly above)
             env.step(torch.zeros(env.num_envs, 0, device=env.device))
-            
-            # Get observations
+
             obs = env.observation_manager.compute()
-            
-            # Print debug info every 50 steps
+
             if count % 50 == 0:
-                print(f"[Step {count}] Env 0: pos={robot.data.root_pos_w[0, :2].tolist()}, "
-                      f"lin_vel={robot.data.root_lin_vel_w[0, :2].tolist()}")
-            
+                cur_lm = LANDMARK_NAMES[landmark_idx[0].item()]
+                print(
+                    f"[Step {count:4d}] Env 0: pos={robot.data.root_pos_w[0, :2].tolist()}, "
+                    f"target='{cur_lm}', dist={dist_to_goal[0]:.2f} m, done={done[0].item()}"
+                )
+
             count += 1
 
-    # Close the environment
     env.close()
     print("[INFO]: Simulation closed successfully")
 
