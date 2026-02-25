@@ -17,6 +17,7 @@ scene, action, observation and event managers to create an environment.
 
 
 import argparse
+import math
 from isaaclab.app import AppLauncher
 
 # add argparse arguments
@@ -65,8 +66,18 @@ SPAWN_TABLE_A_OBJECTS = True
 
 # Sequential landmark navigation settings
 # Robot starts near table_A, navigates to table_B, then returns to table_A, and loops.
-LANDMARK_NAMES = ["table_B", "table_A"]
-GOAL_REACH_THRESHOLD = 30.0 # meters - distance to consider a landmark reached
+LANDMARK_NAMES = ["table_B", "table_A", "table_B", "table_A"]
+GOAL_REACH_THRESHOLD = 2.0 # meters - distance to consider a landmark reached
+
+# XY offsets applied to each landmark's root_pos_w when used as a navigation goal.
+# This shifts the target away from the table (which may be against a wall) into open
+# corridor space.  The table_A offset matches the robot spawn offset (0, +2); table_B
+# is approached from the opposite side (0, -2).  Tune if tables sit off the corridor
+# centre-line or have a different approach direction.
+GOAL_OFFSETS = {
+    "table_A": (0.0, 2.0),   # same offset as robot spawn near table_A
+    "table_B": (0.0, -2.0),  # approach table_B from the -Y corridor side
+}
 
 # Module-level constant for cuboid colors
 DIFFUSE_COLORS = [
@@ -86,7 +97,6 @@ DIFFUSE_COLORS = [
 # ============================= JETBOT CONFIGURATION =============================
 
 ROBOT_SCALE = 5.0      # Scale factor applied to the Jetbot geometry (1.0 = original size)
-VELOCITY_SCALE = 3.0  # Scale factor applied to all velocity limits and gains (1.0 = baseline)
 
 JETBOT_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
@@ -331,14 +341,16 @@ class GoalBasedWheelAction(ActionTerm):
         # Compute control commands with proportional control
         linear_vel = self._linear_gain * distance.squeeze(-1)
         angular_vel = self._angular_gain * angle_to_goal
-        
+
         # Clip to max values
         linear_vel = torch.clamp(linear_vel, -self._max_linear_vel, self._max_linear_vel)
         angular_vel = torch.clamp(angular_vel, -self._max_angular_vel, self._max_angular_vel)
-        
-        # Reduce linear velocity if angular error is large to maintain stability
-        high_angular_error = torch.abs(angle_to_goal) > 0.5
-        linear_vel[high_angular_error] *= 0.5
+
+        # Two-phase pivot-then-drive:
+        # Phase 1 (large angle error): stop all forward motion, rotate in place only.
+        # Phase 2 (aligned): drive forward while making small angular corrections.
+        needs_pivot = torch.abs(angle_to_goal) > self.cfg.pivot_threshold
+        linear_vel = torch.where(needs_pivot, torch.zeros_like(linear_vel), linear_vel)
         
         # Store processed actions [v, omega]
         self._processed_actions[:, 0] = linear_vel
@@ -396,19 +408,23 @@ class GoalBasedWheelActionCfg:
     
     asset_name: str = "jetbot"
     """Name of the robot asset in the scene."""
-    
-    # Control parameters (scaled by VELOCITY_SCALE; baseline values are for original-size Jetbot)
-    linear_gain: float = 1.5 * VELOCITY_SCALE
-    """Proportional gain for linear velocity control (m/s per meter error)."""
 
-    angular_gain: float = 2.0 * VELOCITY_SCALE
-    """Proportional gain for angular velocity control (rad/s per radian error)."""
-
-    max_linear_vel: float = 3.0 * VELOCITY_SCALE
+    max_linear_vel: float = 3.0
     """Maximum linear velocity (m/s)."""
 
-    max_angular_vel: float = 2.0 * VELOCITY_SCALE
+    max_angular_vel: float = (1/2)*(2.0*math.pi)
     """Maximum angular velocity (rad/s)."""
+    
+    # Control parameters 
+    linear_gain: float = max_linear_vel/10.0
+    """Proportional gain for linear velocity control (m/s per meter error)."""
+
+    angular_gain: float = max_angular_vel/(math.pi)
+    """Proportional gain for angular velocity control (rad/s per radian error)."""
+
+    pivot_threshold: float = 5*(math.pi / 180.0)
+    """Angle error (radians) above which the robot pivots in place instead of driving.
+    ~0.25 rad ≈ 14°. Lower = tighter alignment before driving."""
 
     # Wheel parameters scaled by ROBOT_SCALE (original Jetbot: base=0.16m, radius=0.032m)
     wheel_base: float = 0.16 * ROBOT_SCALE
@@ -577,9 +593,25 @@ def main():
     # Track which envs have finished all landmarks
     done = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
 
+    # Pre-build per-landmark XY offset tensors (shape: num_landmarks x 2)
+    # goal_offset_tensor = torch.zeros(len(LANDMARK_NAMES), 2, device=env.device)
+    # for lm_i, lm_name in enumerate(LANDMARK_NAMES):
+    #     ox, oy = GOAL_OFFSETS.get(lm_name, (0.0, 0.0))
+    #     goal_offset_tensor[lm_i, 0] = ox
+    #     goal_offset_tensor[lm_i, 1] = oy
+        
+
     # Initial reset to place the robot near table_A
     env.reset()
     count = 0
+
+    # Print landmark positions once after reset for debugging
+    print("[DEBUG] Landmark world positions (env 0):")
+    for lm_name in LANDMARK_NAMES:
+        pos = env.scene[lm_name].data.root_pos_w[0]
+        off = GOAL_OFFSETS.get(lm_name, (0.0, 0.0))
+        nav_xy = (pos[0].item() + off[0], pos[1].item() + off[1])
+        print(f"  {lm_name}: table_xy=({pos[0]:.2f}, {pos[1]:.2f})  nav_target_xy=({nav_xy[0]:.2f}, {nav_xy[1]:.2f})")
 
     while simulation_app.is_running():
         with torch.inference_mode():
@@ -593,15 +625,25 @@ def main():
             env_indices = torch.arange(env.num_envs, device=env.device)
             current_goal_pos = landmark_positions[env_indices, landmark_idx]  # (num_envs, 3)
 
-            # Build [goal_x, goal_y, goal_yaw] tensor (yaw=0, controller steers toward goal)
+            # Build [goal_x, goal_y, goal_yaw] tensor targeting an approach point in
+            # front of each table (not the table wall itself).
             current_goals = torch.zeros(env.num_envs, 3, device=env.device)
-            current_goals[:, :2] = current_goal_pos[:, :2]
+            current_goals[:, :2] = current_goal_pos[:, :2] # + goal_offset_tensor[landmark_idx]
 
-            # Check distance from each robot to its current target landmark
+            # Check distance from each robot to its current nav target (offset approach point)
             robot_xy = robot.data.root_pos_w[:, :2]  # (num_envs, 2)
-            dist_to_goal = torch.norm(current_goal_pos[:, :2] - robot_xy, dim=1)  # (num_envs,)
+            nav_goal_xy = current_goal_pos[:, :2] #+ goal_offset_tensor[landmark_idx]
+            dist_to_goal = torch.norm(nav_goal_xy - robot_xy, dim=1)  # (num_envs,)
 
-            # Advance landmark for envs that reached their goal and aren't done yet
+            # Apply wheel velocity commands FIRST so the robot always acts on the current goal
+            action_term.apply_actions(current_goals)
+
+            # Step simulation (action manager has 0 dims; control applied directly above)
+            env.step(torch.zeros(env.num_envs, 0, device=env.device))
+
+            obs = env.observation_manager.compute()
+
+            # AFTER stepping, update landmark index for envs that reached their goal
             reached = (dist_to_goal < GOAL_REACH_THRESHOLD) & ~done
             at_last = landmark_idx == (num_landmarks - 1)
             # Mark done for envs that just reached the final landmark
@@ -613,19 +655,13 @@ def main():
                 print("[INFO]: All environments have completed the landmark sequence. Closing.")
                 break
 
-            # Apply wheel velocity commands computed from current goals
-            action_term.apply_actions(current_goals)
-
-            # Step simulation (action manager has 0 dims; control applied directly above)
-            env.step(torch.zeros(env.num_envs, 0, device=env.device))
-
-            obs = env.observation_manager.compute()
-
             if count % 50 == 0:
                 cur_lm = LANDMARK_NAMES[landmark_idx[0].item()]
+                nav_xy_0 = nav_goal_xy[0].tolist()
                 print(
                     f"[Step {count:4d}] Env 0: pos={robot.data.root_pos_w[0, :2].tolist()}, "
-                    f"target='{cur_lm}', dist={dist_to_goal[0]:.2f} m, done={done[0].item()}"
+                    f"target='{cur_lm}' nav_xy=({nav_xy_0[0]:.2f},{nav_xy_0[1]:.2f}), "
+                    f"dist={dist_to_goal[0]:.2f} m, done={done[0].item()}"
                 )
 
             count += 1
