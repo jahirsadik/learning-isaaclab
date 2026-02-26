@@ -23,6 +23,7 @@ import os
 from datetime import datetime
 from pathlib import Path
 
+from isaaclab.sensors.sensor_base_cfg import SensorBaseCfg
 import numpy as np
 from isaaclab.app import AppLauncher
 from PIL import Image
@@ -168,9 +169,14 @@ def _flush_cached_frames(cache: list[list[np.ndarray]], frames_dir: Path) -> Non
             continue
         env_dir = frames_dir / f"env_{env_idx:03d}"
         env_dir.mkdir(parents=True, exist_ok=True)
+        count = 0
         for frame_idx, frame in enumerate(frames):
             frame_path = env_dir / f"rgb_{frame_idx:05d}.png"
             Image.fromarray(frame).save(frame_path)
+            count += 1
+            if count % 100 == 0:
+                print(f"[INFO] Saved {count} frames for env {env_idx}...")
+
         total_saved += len(frames)
         frames.clear()
 
@@ -332,6 +338,10 @@ class LongCorridorWheeledRobotSceneCfg(InteractiveSceneCfg):
         height=720,
         width=1280,
         data_types=["rgb"],
+        offset=SensorBaseCfg.OffsetCfg(
+            pos=(0.0, 0.0, 0.5), # Moves the camera 0.5 meters UP in the Z-axis
+            rot=(1.0, 0.0, 0.0, 0.0) # Keeps original rotation (Quat: w, x, y, z)
+        ),
         spawn=None,
     )
 
@@ -656,6 +666,7 @@ class LongCorridorWheeledEnvCfg(ManagerBasedEnvCfg):
         self.decimation = 4  # env step every 4 sim steps: 200Hz / 4 = 50Hz
         # simulation settings
         self.sim.dt = 0.01  # sim step every 10ms: 100Hz
+        self.sim.render_interval = self.decimation
 
 
 def main():
@@ -697,12 +708,12 @@ def main():
     count = 0
 
     # Print landmark positions once after reset for debugging
-    print("[DEBUG] Landmark world positions (env 0):")
-    for lm_name in LANDMARK_NAMES:
-        pos = env.scene[lm_name].data.root_pos_w[0]
-        off = GOAL_OFFSETS.get(lm_name, (0.0, 0.0))
-        nav_xy = (pos[0].item() + off[0], pos[1].item() + off[1])
-        print(f"  {lm_name}: table_xy=({pos[0]:.2f}, {pos[1]:.2f})  nav_target_xy=({nav_xy[0]:.2f}, {nav_xy[1]:.2f})")
+    # print("[DEBUG] Landmark world positions (env 0):")
+    # for lm_name in LANDMARK_NAMES:
+    #     pos = env.scene[lm_name].data.root_pos_w[0]
+    #     off = GOAL_OFFSETS.get(lm_name, (0.0, 0.0))
+    #     nav_xy = (pos[0].item() + off[0], pos[1].item() + off[1])
+    #     print(f"  {lm_name}: table_xy=({pos[0]:.2f}, {pos[1]:.2f})  nav_target_xy=({nav_xy[0]:.2f}, {nav_xy[1]:.2f})")
 
     try:
         while simulation_app.is_running():
@@ -735,7 +746,7 @@ def main():
                 obs = env.observation_manager.compute()
 
                 camera_obs = obs.get("camera") if isinstance(obs, dict) else None
-                if isinstance(camera_obs, dict) and "rgb" in camera_obs:
+                if isinstance(camera_obs, dict) and "rgb" in camera_obs and count % 5 == 0:
                     _cache_camera_frames(camera_obs["rgb"], frame_cache)
 
                 # AFTER stepping, update landmark index for envs that reached their goal
@@ -763,6 +774,8 @@ def main():
     finally:
         _flush_cached_frames(frame_cache, frames_dir)
         print(f"[INFO]: RGB cache flushed to {frames_dir} (session {session_id}, root {session_dir})")
+        print(f"[INFO]: Use this command to create video from the frames: ffmpeg -framerate 30 -i {frames_dir}/env_000/rgb_%05d.png -c:v libx264 -pix_fmt yuv420p {frames_dir}/env_000.mp4")
+        print(f"[INFO]: Delete the frames directory if no longer needed. Command: rm -rf {frames_dir}/env*/")
 
     env.close()
     print("[INFO]: Simulation closed successfully")
