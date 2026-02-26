@@ -4,12 +4,13 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 """
-This script demonstrates how to create a simple environment with a cartpole. It combines the concepts of
-scene, action, observation and event managers to create an environment.
+This script demonstrates how to create synthetic navigation data in the long corridor environment with a wheeled robot. 
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p scripts/tutorials/03_envs/create_cartpole_base_env.py --num_envs 32
+    ./isaaclab.sh -p scripts/long_corridor_wheeled.py --num_envs 2 --enable_cameras
+
+    ffmpeg -framerate 30 -i /home/jahirsadikmonon/Documents/Projects/IsaacLab/outputs/synthetic_data/20260225_183318/frames/env_001/rgb_%05d.png -c:v libx264 -pix_fmt yuv420p /home/jahirsadikmonon/Documents/Projects/IsaacLab/outputs/synthetic_data/20260225_183318/frames/env1.mp4
 
 """
 
@@ -18,7 +19,13 @@ scene, action, observation and event managers to create an environment.
 
 import argparse
 import math
+import os
+from datetime import datetime
+from pathlib import Path
+
+import numpy as np
 from isaaclab.app import AppLauncher
+from PIL import Image
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Script for automated synthetic data generation in a long corridor environment with a wheeled robot..")
@@ -35,7 +42,6 @@ simulation_app = app_launcher.app
 
 """Rest everything follows - imports after SimulationApp instantiation."""
 
-import os
 import torch
 
 # Now import all Isaac Lab modules AFTER SimulationApp is created
@@ -52,12 +58,14 @@ from isaaclab.utils import configclass
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.assets import AssetBaseCfg
 import isaaclab.sim as sim_utils
+from isaaclab.sensors import CameraCfg
 from isaaclab.sim import UsdFileCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.actuators import ImplicitActuatorCfg 
 
 
 DATA_DIR = "/home/jahirsadikmonon/Documents/Projects/usds"
+OUTPUT_DIR = Path(__file__).parent.parent / "outputs" / "synthetic_data"
 NUM_CUBOIDS = 2
 SPACING = 30.0
 SPAWN_CUBOIDS_IN_PATH = False
@@ -66,7 +74,7 @@ SPAWN_TABLE_A_OBJECTS = True
 
 # Sequential landmark navigation settings
 # Robot starts near table_A, navigates to table_B, then returns to table_A, and loops.
-LANDMARK_NAMES = ["table_B", "table_A", "table_B", "table_A"]
+LANDMARK_NAMES = ["table_B"]
 GOAL_REACH_THRESHOLD = 2.0 # meters - distance to consider a landmark reached
 
 # XY offsets applied to each landmark's root_pos_w when used as a navigation goal.
@@ -106,6 +114,68 @@ JETBOT_CFG = ArticulationCfg(
     actuators={"wheel_acts": ImplicitActuatorCfg(joint_names_expr=[".*"], damping=None, stiffness=None)},
 )
 """Configuration for the Jetbot wheeled robot."""
+
+
+def camera_rgb_observation(env: ManagerBasedEnv, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
+    """Return normalized RGB observations from the specified camera sensor."""
+
+    sensor = env.scene[sensor_cfg.name]
+    output = sensor.data.output
+
+    if not output or "rgb" not in output:
+        height = sensor.cfg.height or 1
+        width = sensor.cfg.width or 1
+        return torch.zeros((env.num_envs, height, width, 3), dtype=torch.float32, device=env.device)
+
+    rgb = output["rgb"][..., :3]
+    if rgb.dtype != torch.float32:
+        rgb = rgb.to(dtype=torch.float32) / 255.0
+
+    return rgb
+
+
+def _prepare_recording_dirs() -> tuple[Path, Path, str]:
+    """Create session and frame directories for cached RGB dumps."""
+
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+    session_dir = OUTPUT_DIR / session_id
+    frames_dir = session_dir / "frames"
+    frames_dir.mkdir(parents=True, exist_ok=True)
+    print(f"[INFO] Recordings to: {frames_dir}")
+    return session_dir, frames_dir, session_id
+
+
+def _cache_camera_frames(rgb_obs: torch.Tensor, cache: list[list[np.ndarray]]) -> None:
+    """Append per-env RGB frames (uint8 HxWx3) to an in-memory cache."""
+
+    if rgb_obs is None or rgb_obs.numel() == 0:
+        return
+
+    rgb_uint8 = (rgb_obs.clamp(0.0, 1.0) * 255.0).to(torch.uint8)
+    rgb_np = rgb_uint8.cpu().numpy()
+
+    for env_idx in range(rgb_np.shape[0]):
+        cache[env_idx].append(np.copy(rgb_np[env_idx]))
+
+
+def _flush_cached_frames(cache: list[list[np.ndarray]], frames_dir: Path) -> None:
+    """Write cached RGB sequences to disk without blocking the sim loop."""
+
+    total_saved = 0
+    for env_idx, frames in enumerate(cache):
+        if not frames:
+            continue
+        env_dir = frames_dir / f"env_{env_idx:03d}"
+        env_dir.mkdir(parents=True, exist_ok=True)
+        for frame_idx, frame in enumerate(frames):
+            frame_path = env_dir / f"rgb_{frame_idx:05d}.png"
+            Image.fromarray(frame).save(frame_path)
+        total_saved += len(frames)
+        frames.clear()
+
+    if total_saved > 0:
+        print(f"[INFO] Saved {total_saved} cached RGB frames to {frames_dir}")
 
 
 @configclass
@@ -254,6 +324,15 @@ class LongCorridorWheeledRobotSceneCfg(InteractiveSceneCfg):
     jetbot: ArticulationCfg = JETBOT_CFG.replace(
         prim_path="{ENV_REGEX_NS}/Robot",
         init_state=ArticulationCfg.InitialStateCfg(pos=(-0.6, 0.0, 0.0))
+    )
+
+    jetbot_camera = CameraCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/chassis/rgb_camera/jetbot_camera",
+        update_period=0.0,
+        height=720,
+        width=1280,
+        data_types=["rgb"],
+        spawn=None,
     )
 
 
@@ -470,6 +549,16 @@ class ObservationsCfg:
     # observation groups
     policy: PolicyCfg = PolicyCfg()
 
+    @configclass
+    class CameraRecorderCfg(ObsGroup):
+        rgb = ObsTerm(func=camera_rgb_observation, params={"sensor_cfg": SceneEntityCfg("jetbot_camera")})
+
+        def __post_init__(self) -> None:
+            self.enable_corruption = False
+            self.concatenate_terms = False
+
+    camera: CameraRecorderCfg = CameraRecorderCfg()
+
 
 @configclass
 class EventCfg:
@@ -603,6 +692,8 @@ def main():
 
     # Initial reset to place the robot near table_A
     env.reset()
+    session_dir, frames_dir, session_id = _prepare_recording_dirs()
+    frame_cache: list[list[np.ndarray]] = [[] for _ in range(env.num_envs)]
     count = 0
 
     # Print landmark positions once after reset for debugging
@@ -613,58 +704,65 @@ def main():
         nav_xy = (pos[0].item() + off[0], pos[1].item() + off[1])
         print(f"  {lm_name}: table_xy=({pos[0]:.2f}, {pos[1]:.2f})  nav_target_xy=({nav_xy[0]:.2f}, {nav_xy[1]:.2f})")
 
-    while simulation_app.is_running():
-        with torch.inference_mode():
-            # Stack landmark world positions: (num_envs, num_landmarks, 3)
-            # Each landmark is a RigidObject so .data.root_pos_w has shape (num_envs, 3)
-            landmark_positions = torch.stack(
-                [env.scene[name].data.root_pos_w for name in LANDMARK_NAMES], dim=1
-            )  # (num_envs, num_landmarks, 3)
+    try:
+        while simulation_app.is_running():
+            with torch.inference_mode():
+                # Stack landmark world positions: (num_envs, num_landmarks, 3)
+                landmark_positions = torch.stack(
+                    [env.scene[name].data.root_pos_w for name in LANDMARK_NAMES], dim=1
+                )  # (num_envs, num_landmarks, 3)
 
-            # Select the current target landmark position for each env
-            env_indices = torch.arange(env.num_envs, device=env.device)
-            current_goal_pos = landmark_positions[env_indices, landmark_idx]  # (num_envs, 3)
+                # Select the current target landmark position for each env
+                env_indices = torch.arange(env.num_envs, device=env.device)
+                current_goal_pos = landmark_positions[env_indices, landmark_idx]  # (num_envs, 3)
 
-            # Build [goal_x, goal_y, goal_yaw] tensor targeting an approach point in
-            # front of each table (not the table wall itself).
-            current_goals = torch.zeros(env.num_envs, 3, device=env.device)
-            current_goals[:, :2] = current_goal_pos[:, :2] # + goal_offset_tensor[landmark_idx]
+                # Build [goal_x, goal_y, goal_yaw] tensor targeting an approach point in
+                # front of each table (not the table wall itself).
+                current_goals = torch.zeros(env.num_envs, 3, device=env.device)
+                current_goals[:, :2] = current_goal_pos[:, :2]
 
-            # Check distance from each robot to its current nav target (offset approach point)
-            robot_xy = robot.data.root_pos_w[:, :2]  # (num_envs, 2)
-            nav_goal_xy = current_goal_pos[:, :2] #+ goal_offset_tensor[landmark_idx]
-            dist_to_goal = torch.norm(nav_goal_xy - robot_xy, dim=1)  # (num_envs,)
+                # Check distance from each robot to its current nav target (offset approach point)
+                robot_xy = robot.data.root_pos_w[:, :2]  # (num_envs, 2)
+                nav_goal_xy = current_goal_pos[:, :2]
+                dist_to_goal = torch.norm(nav_goal_xy - robot_xy, dim=1)  # (num_envs,)
 
-            # Apply wheel velocity commands FIRST so the robot always acts on the current goal
-            action_term.apply_actions(current_goals)
+                # Apply wheel velocity commands FIRST so the robot always acts on the current goal
+                action_term.apply_actions(current_goals)
 
-            # Step simulation (action manager has 0 dims; control applied directly above)
-            env.step(torch.zeros(env.num_envs, 0, device=env.device))
+                # Step simulation (action manager has 0 dims; control applied directly above)
+                env.step(torch.zeros(env.num_envs, 0, device=env.device))
 
-            obs = env.observation_manager.compute()
+                obs = env.observation_manager.compute()
 
-            # AFTER stepping, update landmark index for envs that reached their goal
-            reached = (dist_to_goal < GOAL_REACH_THRESHOLD) & ~done
-            at_last = landmark_idx == (num_landmarks - 1)
-            # Mark done for envs that just reached the final landmark
-            done |= reached & at_last
-            # Advance index for envs that reached a non-final landmark
-            landmark_idx = torch.where(reached & ~at_last, landmark_idx + 1, landmark_idx)
+                camera_obs = obs.get("camera") if isinstance(obs, dict) else None
+                if isinstance(camera_obs, dict) and "rgb" in camera_obs:
+                    _cache_camera_frames(camera_obs["rgb"], frame_cache)
 
-            if done.all():
-                print("[INFO]: All environments have completed the landmark sequence. Closing.")
-                break
+                # AFTER stepping, update landmark index for envs that reached their goal
+                reached = (dist_to_goal < GOAL_REACH_THRESHOLD) & ~done
+                at_last = landmark_idx == (num_landmarks - 1)
+                # Mark done for envs that just reached the final landmark
+                done |= reached & at_last
+                # Advance index for envs that reached a non-final landmark
+                landmark_idx = torch.where(reached & ~at_last, landmark_idx + 1, landmark_idx)
 
-            if count % 50 == 0:
-                cur_lm = LANDMARK_NAMES[landmark_idx[0].item()]
-                nav_xy_0 = nav_goal_xy[0].tolist()
-                print(
-                    f"[Step {count:4d}] Env 0: pos={robot.data.root_pos_w[0, :2].tolist()}, "
-                    f"target='{cur_lm}' nav_xy=({nav_xy_0[0]:.2f},{nav_xy_0[1]:.2f}), "
-                    f"dist={dist_to_goal[0]:.2f} m, done={done[0].item()}"
-                )
+                if done.all():
+                    print("[INFO]: All environments have completed the landmark sequence. Closing.")
+                    break
 
-            count += 1
+                if count % 50 == 0:
+                    cur_lm = LANDMARK_NAMES[landmark_idx[0].item()]
+                    nav_xy_0 = nav_goal_xy[0].tolist()
+                    print(
+                        f"[Step {count:4d}] Env 0: pos={robot.data.root_pos_w[0, :2].tolist()}, "
+                        f"target='{cur_lm}' nav_xy=({nav_xy_0[0]:.2f},{nav_xy_0[1]:.2f}), "
+                        f"dist={dist_to_goal[0]:.2f} m, done={done[0].item()}"
+                    )
+
+                count += 1
+    finally:
+        _flush_cached_frames(frame_cache, frames_dir)
+        print(f"[INFO]: RGB cache flushed to {frames_dir} (session {session_id}, root {session_dir})")
 
     env.close()
     print("[INFO]: Simulation closed successfully")
