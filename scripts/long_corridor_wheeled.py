@@ -23,7 +23,6 @@ import os
 from datetime import datetime
 from pathlib import Path
 
-from isaaclab.sensors.sensor_base_cfg import SensorBaseCfg
 import numpy as np
 from isaaclab.app import AppLauncher
 from PIL import Image
@@ -59,6 +58,7 @@ from isaaclab.utils import configclass
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.assets import AssetBaseCfg
 import isaaclab.sim as sim_utils
+from isaaclab.sensors.sensor_base_cfg import SensorBaseCfg
 from isaaclab.sensors import CameraCfg
 from isaaclab.sim import UsdFileCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
@@ -67,6 +67,7 @@ from isaaclab.actuators import ImplicitActuatorCfg
 
 DATA_DIR = "/home/jahirsadikmonon/Documents/Projects/usds"
 OUTPUT_DIR = Path(__file__).parent.parent / "outputs" / "synthetic_data"
+ENV_SPACING = 180.0
 NUM_CUBOIDS = 2
 SPACING = 30.0
 SPAWN_CUBOIDS_IN_PATH = False
@@ -338,10 +339,6 @@ class LongCorridorWheeledRobotSceneCfg(InteractiveSceneCfg):
         height=720,
         width=1280,
         data_types=["rgb"],
-        offset=SensorBaseCfg.OffsetCfg(
-            pos=(0.0, 0.0, 0.5), # Moves the camera 0.5 meters UP in the Z-axis
-            rot=(1.0, 0.0, 0.0, 0.0) # Keeps original rotation (Quat: w, x, y, z)
-        ),
         spawn=None,
     )
 
@@ -651,7 +648,7 @@ class LongCorridorWheeledEnvCfg(ManagerBasedEnvCfg):
     """Configuration for the long corridor environment."""
 
     # Scene settings
-    scene = LongCorridorWheeledRobotSceneCfg(num_envs=1024, env_spacing=30.0)
+    scene = LongCorridorWheeledRobotSceneCfg(num_envs=1024, env_spacing=ENV_SPACING)
     # Basic settings
     observations = ObservationsCfg()
     actions = ActionsCfg()
@@ -673,6 +670,7 @@ def main():
     """Main function to run the long corridor wheeled robot environment."""
     env_cfg = LongCorridorWheeledEnvCfg()
     env_cfg.scene.num_envs = args_cli.num_envs
+    env_cfg.scene.env_spacing = max(env_cfg.scene.env_spacing, ENV_SPACING)
     env_cfg.sim.device = args_cli.device
 
     env = ManagerBasedEnv(cfg=env_cfg)
